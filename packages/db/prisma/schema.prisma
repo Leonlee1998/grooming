@@ -1,0 +1,361 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/client"
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Species {
+  DOG
+  CAT
+}
+
+enum StaffRole {
+  GROOMER
+  MANAGER
+  ADMIN
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum AppointmentSource {
+  WALK_IN
+  LINE_BOT
+  PHONE
+  ONLINE
+}
+
+enum OrderStatus {
+  DRAFT
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  REFUNDED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  CREDIT_CARD
+  LINE_PAY
+  TRANSFER
+}
+
+enum ServiceCategory {
+  BATH
+  FULL_GROOMING
+  NAIL_TRIM
+  EAR_CLEANING
+  TEETH_BRUSHING
+  ANAL_GLAND
+  BLOW_DRY
+  ADD_ON
+}
+
+enum PriceAdjustmentType {
+  FIXED
+  PERCENTAGE
+}
+
+enum MemberStatus {
+  ACTIVE
+  EXPIRED
+  SUSPENDED
+}
+
+enum PromotionType {
+  DISCOUNT_CODE
+  PERIOD
+  MEMBER_LEVEL
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED
+}
+
+enum ContractStatus {
+  DRAFT
+  SIGNED
+  VOIDED
+}
+
+// ─── P1-1: Customer / Pet / Staff ─────────────────────────────────────────────
+
+model Customer {
+  id                 String   @id @default(cuid())
+  name               String
+  phone              String   @unique
+  email              String?
+  address            String?
+  /// §8: 客戶指定緊急獸醫院，異常時優先送往
+  emergencyVetClinic String?
+  lineUserId         String?  @unique
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  pets         Pet[]
+  appointments Appointment[]
+  orders       Order[]
+  member       Member?
+  contracts    Contract[]
+}
+
+model Pet {
+  id              String    @id @default(cuid())
+  customerId      String
+  name            String
+  species         Species
+  breed           String?
+  birthDate       DateTime?
+  weight          Decimal?  @db.Decimal(5, 2)
+  avatarUrl       String?
+  /// §4: 攻擊性（美容前必問）
+  isAggressive    Boolean   @default(false)
+  /// §4: 健康狀況（美容前必問）
+  healthCondition String?
+  /// §4: 疾病史（美容前必問）
+  diseases        String?
+  specialNeeds    String?
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  customer     Customer      @relation(fields: [customerId], references: [id])
+  appointments Appointment[]
+  orders       Order[]
+  contracts    Contract[]
+}
+
+model Staff {
+  id        String    @id @default(cuid())
+  name      String
+  phone     String?   @unique
+  email     String?   @unique
+  role      StaffRole @default(GROOMER)
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  appointments Appointment[]
+  orders       Order[]
+}
+
+// ─── P1-2: Appointment / Order / OrderItem ─────────────────────────────────────
+
+model Appointment {
+  id             String            @id @default(cuid())
+  customerId     String
+  petId          String
+  staffId        String?
+  scheduledAt    DateTime
+  estimatedEndAt DateTime?
+  status         AppointmentStatus @default(SCHEDULED)
+  source         AppointmentSource @default(WALK_IN)
+  notes          String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id])
+  pet      Pet      @relation(fields: [petId], references: [id])
+  staff    Staff?   @relation(fields: [staffId], references: [id])
+  order    Order?
+
+  @@index([scheduledAt])
+  @@index([customerId])
+}
+
+model Order {
+  id            String         @id @default(cuid())
+  appointmentId String?        @unique
+  customerId    String
+  petId         String
+  staffId       String?
+  status        OrderStatus    @default(DRAFT)
+  subtotal      Int
+  discount      Int            @default(0)
+  total         Int
+  paidAt        DateTime?
+  paymentMethod PaymentMethod?
+  /// §: 逾30分鐘才可計收逾時費，30分鐘內免費
+  overtimeMinutes Int          @default(0)
+  overtimeFee     Int          @default(0)
+  notes           String?
+  refundedAt      DateTime?
+  refundAmount    Int?
+  /// §: 3日內退費，手續費上限5%且不逾1,000元
+  refundFee       Int?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  appointment Appointment? @relation(fields: [appointmentId], references: [id])
+  customer    Customer     @relation(fields: [customerId], references: [id])
+  pet         Pet          @relation(fields: [petId], references: [id])
+  staff       Staff?       @relation(fields: [staffId], references: [id])
+  items       OrderItem[]
+  contract    Contract?
+
+  @@index([customerId, createdAt])
+  @@index([status])
+}
+
+model OrderItem {
+  id        String   @id @default(cuid())
+  orderId   String
+  serviceId String?
+  /// 下單時的名稱快照
+  name      String
+  /// 下單時的單價快照（TWD）
+  unitPrice Int
+  quantity  Int      @default(1)
+  total     Int
+  createdAt DateTime @default(now())
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  service Service? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+}
+
+// ─── P1-3: Service / PriceRule ────────────────────────────────────────────────
+
+model Service {
+  id               String          @id @default(cuid())
+  name             String
+  description      String?
+  category         ServiceCategory
+  /// 基礎定價（TWD 整數）
+  basePrice        Int
+  estimatedMinutes Int             @default(60)
+  isActive         Boolean         @default(true)
+  sortOrder        Int             @default(0)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  priceRules PriceRule[]
+  orderItems OrderItem[]
+}
+
+model PriceRule {
+  id             String              @id @default(cuid())
+  serviceId      String
+  label          String?
+  weightMin      Decimal?            @db.Decimal(5, 2)
+  weightMax      Decimal?            @db.Decimal(5, 2)
+  breedPattern   String?
+  isKnotted      Boolean?
+  /// 調整金額（TWD）或百分比
+  adjustment     Int
+  adjustmentType PriceAdjustmentType @default(FIXED)
+  priority       Int                 @default(0)
+  isActive       Boolean             @default(true)
+  createdAt      DateTime            @default(now())
+
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+}
+
+// ─── P1-4: Member / MemberPlan / Promotion ────────────────────────────────────
+
+model MemberPlan {
+  id               String   @id @default(cuid())
+  name             String
+  description      String?
+  price            Int
+  pointsMultiplier Decimal  @default(1.0) @db.Decimal(3, 1)
+  benefits         Json?
+  /// §: 套餐方案審閱期不得少於1日
+  reviewDaysMin    Int      @default(1)
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  members Member[]
+}
+
+model Member {
+  id           String       @id @default(cuid())
+  customerId   String       @unique
+  memberPlanId String?
+  points       Int          @default(0)
+  /// 儲值餘額（TWD）
+  balance      Int          @default(0)
+  status       MemberStatus @default(ACTIVE)
+  joinedAt     DateTime     @default(now())
+  expiredAt    DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  customer   Customer    @relation(fields: [customerId], references: [id])
+  memberPlan MemberPlan? @relation(fields: [memberPlanId], references: [id])
+}
+
+model Promotion {
+  id             String        @id @default(cuid())
+  name           String
+  description    String?
+  type           PromotionType
+  discountType   DiscountType
+  /// 折扣值：百分比(0-100) 或 固定金額(TWD)
+  discountValue  Int
+  code           String?       @unique
+  startAt        DateTime?
+  endAt          DateTime?
+  usageLimit     Int?
+  usageCount     Int           @default(0)
+  minOrderAmount Int?
+  isActive       Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+// ─── P1-5: Contract / ContractTemplate ───────────────────────────────────────
+
+model ContractTemplate {
+  id             String   @id @default(cuid())
+  name           String
+  version        String   @default("1.0")
+  /// Handlebars HTML 模板
+  htmlContent    String
+  /// 法規鎖定的必填欄位定義（不可刪除）
+  requiredFields Json
+  /// 店家可自訂的額外欄位
+  customFields   Json?
+  isDefault      Boolean  @default(false)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  contracts Contract[]
+}
+
+model Contract {
+  id               String         @id @default(cuid())
+  orderId          String         @unique
+  customerId       String
+  petId            String
+  templateId       String?
+  status           ContractStatus @default(DRAFT)
+  signedAt         DateTime?
+  /// base64 PNG 手寫簽名
+  signatureDataUrl String?
+  /// Supabase Storage 路徑：contracts/{orderId}/signed.pdf
+  pdfUrl           String?
+  /// 簽約時的資料快照
+  contentSnapshot  Json?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  order    Order             @relation(fields: [orderId], references: [id])
+  customer Customer          @relation(fields: [customerId], references: [id])
+  pet      Pet               @relation(fields: [petId], references: [id])
+  template ContractTemplate? @relation(fields: [templateId], references: [id])
+}

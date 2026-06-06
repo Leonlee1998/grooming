@@ -1,0 +1,4 @@
+
+> @repo/line-bot@0.1.0 lint C:\Users\leonlee\Desktop\grooming\packages\line-bot
+> eslint src --ext .ts
+

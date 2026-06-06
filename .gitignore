@@ -1,0 +1,22 @@
+node_modules
+.pnpm-store
+
+.next
+out
+dist
+coverage
+
+.env
+.env*.local
+
+*.tsbuildinfo
+
+# Prisma generated client
+packages/db/generated/
+
+# PWA generated files
+**/public/sw.js
+**/public/workbox-*.js
+**/public/worker-*.js
+**/public/sw.js.map
+**/public/workbox-*.js.map

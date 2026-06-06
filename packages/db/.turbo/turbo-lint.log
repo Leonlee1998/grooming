@@ -1,0 +1,4 @@
+
+> @repo/db@0.1.0 lint C:\Users\leonlee\Desktop\grooming\packages\db
+> eslint src --ext .ts
+

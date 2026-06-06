@@ -1,0 +1,45 @@
+{
+  "name": "pet-grooming-pos",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.15.1",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "pnpm --parallel --filter \"./apps/*\" dev",
+    "build": "pnpm -r build",
+    "lint": "turbo run lint",
+    "format": "prettier --write .",
+    "typecheck": "turbo run typecheck",
+    "db:generate": "pnpm --filter @repo/db generate",
+    "db:migrate": "pnpm --filter @repo/db migrate",
+    "db:studio": "pnpm --filter @repo/db studio",
+    "db:seed": "pnpm --filter @repo/db seed",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "{apps,packages}/**/src/**/*.{ts,tsx}": [
+      "eslint --fix --max-warnings=0",
+      "prettier --write"
+    ],
+    "*.{js,mjs,cjs,json,md,css}": [
+      "prettier --write"
+    ]
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^21.0.2",
+    "@commitlint/config-conventional": "^21.0.2",
+    "@types/node": "^20.19.0",
+    "@typescript-eslint/eslint-plugin": "^8.34.0",
+    "@typescript-eslint/parser": "^8.34.0",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "^14.2.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.7",
+    "prettier": "^3.5.0",
+    "turbo": "^2.5.0",
+    "typescript": "^5.8.0"
+  }
+}

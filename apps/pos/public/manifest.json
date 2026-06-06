@@ -1,0 +1,23 @@
+{
+  "name": "寵物美容 POS",
+  "short_name": "美容POS",
+  "description": "寵物美容店 iPad 收銀暨報到系統",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "theme_color": "#78573A",
+  "background_color": "#FAF7F2",
+  "lang": "zh-TW",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
