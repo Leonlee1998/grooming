@@ -26,7 +26,7 @@
 - [x] P1-3：設計服務項目與定價資料表（Service、PriceRule）
 - [x] P1-4：設計會員與優惠資料表（Member、MemberPlan、Promotion）
 - [x] P1-5：設計契約紀錄資料表（Contract、ContractTemplate）
-- [ ] P1-6：設定 Supabase Row Level Security（RLS）policies
+- [x] P1-6：設定 Supabase Row Level Security（RLS）policies
 - [x] P1-7：撰寫 seed 資料（範例服務項目、員工、會員方案）
 - [ ] P1-8：驗證：`pnpm db:seed` 成功，Prisma Studio 資料正確
 

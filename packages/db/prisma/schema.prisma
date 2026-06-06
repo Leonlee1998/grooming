@@ -55,6 +55,42 @@ enum PaymentMethod {
   MEMBER_BALANCE
 }
 
+enum ServiceCategory {
+  BATH
+  HAIRCUT
+  NAIL
+  SPA
+  OTHER
+}
+
+enum AdjustmentType {
+  FIXED
+  PERCENTAGE
+}
+
+enum PointTransactionType {
+  EARN
+  REDEEM
+  ADJUST
+  EXPIRE
+}
+
+enum BalanceTransactionType {
+  TOPUP
+  SPEND
+  REFUND
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+enum ContractType {
+  SINGLE_SERVICE
+  PACKAGE
+}
+
 model Customer {
   id               String   @id @default(cuid())
   phone            String   @unique
@@ -70,6 +106,8 @@ model Customer {
   pets         Pet[]
   appointments Appointment[]
   orders       Order[]
+  member       Member?
+  contracts    Contract[]
 }
 
 model Pet {
@@ -96,6 +134,7 @@ model Pet {
   customer     Customer      @relation(fields: [customerId], references: [id])
   appointments Appointment[]
   orders       Order[]
+  contracts    Contract[]
 
   @@index([customerId])
 }
@@ -106,12 +145,196 @@ model Staff {
   role      StaffRole
   phone     String?
   isActive  Boolean   @default(true)
-  surcharge    Int           @default(0)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  surcharge Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   appointments Appointment[]
   orders       Order[]
+}
+
+// ─── Service / Pricing ───────────────────────────────────────────────────────
+
+model Service {
+  id               String          @id @default(cuid())
+  name             String
+  category         ServiceCategory
+  description      String?
+  basePrice        Int
+  isActive         Boolean         @default(true)
+  sortOrder        Int             @default(0)
+  estimatedMinutes Int             @default(60)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  priceRules   PriceRule[]
+  packageItems ServicePackageItem[]
+  orderItems   OrderItem[]
+}
+
+model PriceRule {
+  id              String         @id @default(cuid())
+  serviceId       String
+  name            String
+  weightMin       Decimal?       @db.Decimal(5, 2)
+  weightMax       Decimal?       @db.Decimal(5, 2)
+  breed           String?
+  priceAdjustment Int
+  adjustmentType  AdjustmentType
+  isActive        Boolean        @default(true)
+
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@index([serviceId])
+}
+
+model ServicePackage {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  price       Int
+  isActive    Boolean  @default(true)
+  validDays   Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items ServicePackageItem[]
+}
+
+model ServicePackageItem {
+  id        String @id @default(cuid())
+  packageId String
+  serviceId String
+  quantity  Int    @default(1)
+
+  package ServicePackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  service Service        @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@index([packageId])
+  @@index([serviceId])
+}
+
+// ─── Member / Promotion ──────────────────────────────────────────────────────
+
+model MemberPlan {
+  id           String   @id @default(cuid())
+  name         String
+  description  String?
+  monthlyFee   Int      @default(0)
+  pointRate    Decimal  @default(1.0) @db.Decimal(4, 2)
+  discountRate Decimal  @default(0) @db.Decimal(4, 2)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  members Member[]
+}
+
+model Member {
+  id         String    @id @default(cuid())
+  customerId String    @unique
+  planId     String
+  points     Int       @default(0)
+  balance    Int       @default(0)
+  joinedAt   DateTime  @default(now())
+  expiresAt  DateTime?
+
+  customer            Customer             @relation(fields: [customerId], references: [id])
+  plan                MemberPlan           @relation(fields: [planId], references: [id])
+  pointTransactions   PointTransaction[]
+  balanceTransactions BalanceTransaction[]
+
+  @@index([planId])
+}
+
+model PointTransaction {
+  id        String               @id @default(cuid())
+  memberId  String
+  orderId   String?
+  amount    Int
+  type      PointTransactionType
+  note      String?
+  createdAt DateTime             @default(now())
+
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  order  Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([memberId])
+  @@index([orderId])
+}
+
+model BalanceTransaction {
+  id        String                 @id @default(cuid())
+  memberId  String
+  orderId   String?
+  amount    Int
+  type      BalanceTransactionType
+  note      String?
+  createdAt DateTime               @default(now())
+
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  order  Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([memberId])
+  @@index([orderId])
+}
+
+model Promotion {
+  id                String       @id @default(cuid())
+  name              String
+  code              String?      @unique
+  discountType      DiscountType
+  discountValue     Int
+  minOrderAmount    Int          @default(0)
+  maxDiscountAmount Int?
+  startAt           DateTime
+  endAt             DateTime
+  isActive          Boolean      @default(true)
+  usageLimit        Int?
+  usageCount        Int          @default(0)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+}
+
+// ─── Contract ────────────────────────────────────────────────────────────────
+
+model ContractTemplate {
+  id           String       @id @default(cuid())
+  name         String
+  type         ContractType
+  htmlContent  String
+  customFields Json?
+  isActive     Boolean      @default(true)
+  version      Int          @default(1)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  contracts Contract[]
+}
+
+model Contract {
+  id                String    @id @default(cuid())
+  orderId           String    @unique
+  templateId        String
+  customerId        String
+  petId             String
+  filledData        Json
+  customFieldValues Json?
+  signatureDataUrl  String
+  signedAt          DateTime
+  pdfUrl            String?
+  pdfGeneratedAt    DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  order    Order            @relation(fields: [orderId], references: [id])
+  template ContractTemplate @relation(fields: [templateId], references: [id])
+  customer Customer         @relation(fields: [customerId], references: [id])
+  pet      Pet              @relation(fields: [petId], references: [id])
+
+  @@index([templateId])
+  @@index([customerId])
+  @@index([petId])
 }
 
 // ─── Appointment ──────────────────────────────────────────────────────────────
@@ -122,11 +345,11 @@ model Appointment {
   petId             String
   staffId           String?
   scheduledAt       DateTime
-  estimatedDuration Int               // 預估分鐘數
+  estimatedDuration Int // 預估分鐘數
   actualStartAt     DateTime?
   actualEndAt       DateTime?
-  pickupDeadlineAt  DateTime?         // 約定接回時間
-  pickedUpAt        DateTime?         // 實際接回時間
+  pickupDeadlineAt  DateTime? // 約定接回時間
+  pickedUpAt        DateTime? // 實際接回時間
   status            AppointmentStatus @default(PENDING)
   source            AppointmentSource @default(WALK_IN)
   notes             String?
@@ -146,31 +369,32 @@ model Appointment {
 // ─── Order ────────────────────────────────────────────────────────────────────
 
 model Order {
-  id              String        @id @default(cuid())
+  id             String         @id @default(cuid())
   /// 可能是現場直接開單（無預約）
-  appointmentId   String?       @unique
-  customerId      String
-  petId           String
-  staffId         String?
-  status          OrderStatus   @default(DRAFT)
-  subtotalAmount  Int           // 小計（元）
-  discountAmount  Int           @default(0)
+  appointmentId  String?        @unique
+  customerId     String
+  petId          String
+  staffId        String?
+  status         OrderStatus    @default(DRAFT)
+  subtotalAmount Int // 小計（元）
+  discountAmount Int            @default(0)
   /// §: 逾30分鐘才可計收
-  overtimeFee     Int           @default(0)
-  totalAmount     Int           // 總計（元）
-  paidAt          DateTime?
-  paymentMethod   PaymentMethod?
-  notes           String?
-  /// FK → Contract（待建）
-  contractId      String?       @unique
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  overtimeFee    Int            @default(0)
+  totalAmount    Int // 總計（元）
+  paidAt         DateTime?
+  paymentMethod  PaymentMethod?
+  notes          String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
-  appointment Appointment? @relation(fields: [appointmentId], references: [id])
-  customer    Customer     @relation(fields: [customerId], references: [id])
-  pet         Pet          @relation(fields: [petId], references: [id])
-  staff       Staff?       @relation(fields: [staffId], references: [id])
-  items       OrderItem[]
+  appointment         Appointment?         @relation(fields: [appointmentId], references: [id])
+  customer            Customer             @relation(fields: [customerId], references: [id])
+  pet                 Pet                  @relation(fields: [petId], references: [id])
+  staff               Staff?               @relation(fields: [staffId], references: [id])
+  items               OrderItem[]
+  pointTransactions   PointTransaction[]
+  balanceTransactions BalanceTransaction[]
+  contract            Contract?
 
   @@index([customerId, createdAt])
   @@index([status])
@@ -179,18 +403,19 @@ model Order {
 // ─── OrderItem ────────────────────────────────────────────────────────────────
 
 model OrderItem {
-  id          String   @id @default(cuid())
+  id          String  @id @default(cuid())
   orderId     String
-  /// FK → Service（待建）；保留字串以便未來加 @relation
   serviceId   String
   /// 下單時的名稱快照，避免服務改名影響歷史紀錄
   serviceName String
-  quantity    Int      @default(1)
-  unitPrice   Int      // 元
-  amount      Int      // 小計（元）
+  quantity    Int     @default(1)
+  unitPrice   Int // 元
+  amount      Int // 小計（元）
   notes       String?
 
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  service Service @relation(fields: [serviceId], references: [id])
 
   @@index([orderId])
+  @@index([serviceId])
 }
