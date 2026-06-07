@@ -10,5 +10,9 @@
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit"
   },
-  "devDependencies": {}
+  "dependencies": {
+    "@sparticuz/chromium": "^149.0.0",
+    "@supabase/supabase-js": "^2.107.0",
+    "puppeteer-core": "^25.1.0"
+  }
 }
