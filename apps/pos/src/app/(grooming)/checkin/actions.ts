@@ -9,6 +9,41 @@ export type ActionResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: string }
 
+export type OrderItemInput = {
+  serviceId: string
+  quantity: number
+}
+
+export type PriceAdjustmentDetail = {
+  ruleId: string
+  ruleName: string
+  amount: number
+}
+
+export type PriceCalculationItem = {
+  serviceId: string
+  serviceName: string
+  category: string
+  basePrice: number
+  unitPrice: number
+  quantity: number
+  amount: number
+  estimatedMinutes: number
+  priceAdjustments: PriceAdjustmentDetail[]
+}
+
+export type PriceCalculation = {
+  items: PriceCalculationItem[]
+  subtotalAmount: number
+  discountAmount: number
+  totalAmount: number
+  staffSurcharge: number
+  estimatedMinutes: number
+  memberDiscountRate: number
+  memberName: string | null
+  error?: string
+}
+
 // ─── Step 1: Customer ─────────────────────────────────────────────────────
 
 export async function searchCustomerByPhone(phone: string): Promise<
@@ -121,6 +156,7 @@ export async function getPetsByCustomer(customerId: string): Promise<
       isDewormed: boolean
       preferredVetName: string | null
       preferredVetPhone: string | null
+      lastGroomedAt: string | null
     }>
   >
 > {
@@ -143,19 +179,71 @@ export async function getPetsByCustomer(customerId: string): Promise<
         isDewormed: true,
         preferredVetName: true,
         preferredVetPhone: true,
+        orders: {
+          where: { status: 'COMPLETED' },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: { createdAt: true },
+        },
       },
       orderBy: { createdAt: 'desc' },
     })
     return {
       ok: true,
-      data: pets.map((p) => ({
-        ...p,
-        weightKg: p.weightKg?.toString() ?? null,
-        birthDate: p.birthDate?.toISOString().split('T')[0] ?? null,
-      })),
+      data: pets.map((p) => {
+        const { orders, ...rest } = p
+        return {
+          ...rest,
+          weightKg: p.weightKg?.toString() ?? null,
+          birthDate: p.birthDate?.toISOString().split('T')[0] ?? null,
+          lastGroomedAt: orders[0]?.createdAt.toISOString() ?? null,
+        }
+      }),
     }
   } catch {
     return { ok: false, error: '讀取寵物資料失敗' }
+  }
+}
+
+const updateHealthSchema = z.object({
+  petId: z.string(),
+  isAggressive: z.boolean(),
+  hasDisease: z.boolean(),
+  diseaseNotes: z.string().optional(),
+  isVaccinated: z.boolean(),
+  isDewormed: z.boolean(),
+  preferredVetName: z.string().optional(),
+  preferredVetPhone: z.string().optional(),
+})
+
+export async function updatePetHealthInfo(
+  raw: unknown,
+): Promise<ActionResult<{ id: string }>> {
+  const parsed = updateHealthSchema.safeParse(raw)
+  if (!parsed.success)
+    return {
+      ok: false,
+      error: parsed.error.errors[0]?.message ?? '資料格式錯誤',
+    }
+
+  const { petId, ...data } = parsed.data
+  try {
+    const pet = await prismaAdmin.pet.update({
+      where: { id: petId },
+      data: {
+        isAggressive: data.isAggressive,
+        hasDisease: data.hasDisease,
+        diseaseNotes: data.hasDisease ? (data.diseaseNotes ?? null) : null,
+        isVaccinated: data.isVaccinated,
+        isDewormed: data.isDewormed,
+        preferredVetName: data.preferredVetName || null,
+        preferredVetPhone: data.preferredVetPhone || null,
+      },
+      select: { id: true },
+    })
+    return { ok: true, data: pet }
+  } catch {
+    return { ok: false, error: '更新健康資訊失敗' }
   }
 }
 
@@ -172,7 +260,7 @@ const createPetSchema = z.object({
   diseaseNotes: z.string().optional(),
   isVaccinated: z.boolean(),
   isDewormed: z.boolean(),
-  preferredVetName: z.string().min(1, '指定獸醫院必填（法規 §4）'),
+  preferredVetName: z.string().optional(),
   preferredVetPhone: z.string().optional(),
 })
 
@@ -205,15 +293,13 @@ export async function createPet(
 // ─── Step 3: Services + Staff ─────────────────────────────────────────────
 
 export async function getActiveServices(): Promise<
-  ActionResult<
-    Array<{
-      id: string
-      name: string
-      category: string
-      basePrice: number
-      estimatedMinutes: number
-    }>
-  >
+  Array<{
+    id: string
+    name: string
+    category: string
+    basePrice: number
+    estimatedMinutes: number
+  }>
 > {
   try {
     const services = await prismaAdmin.service.findMany({
@@ -227,9 +313,10 @@ export async function getActiveServices(): Promise<
       },
       orderBy: [{ category: 'asc' }, { sortOrder: 'asc' }],
     })
-    return { ok: true, data: services }
-  } catch {
-    return { ok: false, error: '讀取服務項目失敗' }
+    return services
+  } catch (e) {
+    console.error(e)
+    return []
   }
 }
 
@@ -245,6 +332,262 @@ export async function getActiveStaff(): Promise<
     return { ok: true, data: staff }
   } catch {
     return { ok: false, error: '讀取美容師清單失敗' }
+  }
+}
+
+const orderItemInputSchema = z.array(
+  z.object({
+    serviceId: z.string().min(1),
+    quantity: z.number().int().positive().max(20),
+  }),
+)
+
+const emptyPriceCalculation = (error?: string): PriceCalculation => ({
+  items: [],
+  subtotalAmount: 0,
+  discountAmount: 0,
+  totalAmount: 0,
+  staffSurcharge: 0,
+  estimatedMinutes: 0,
+  memberDiscountRate: 0,
+  memberName: null,
+  ...(error ? { error } : {}),
+})
+
+type CalculatePriceInput = {
+  items: Array<{
+    serviceId: string
+    serviceName: string
+    category: string
+    basePrice: number
+    estimatedMinutes: number
+    quantity: number
+    priceRules: Array<{
+      id: string
+      name: string
+      weightMin: unknown
+      weightMax: unknown
+      breed: string | null
+      priceAdjustment: number
+      adjustmentType: string
+    }>
+  }>
+  pet: {
+    weightKg: unknown
+    breed: string | null
+  }
+  staffSurcharge: number
+  member: {
+    plan: {
+      name: string
+      discountRate: unknown
+    }
+  } | null
+}
+
+function decimalToNumber(value: unknown): number | null {
+  if (value === null || value === undefined) return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function ruleMatchesPet(
+  rule: CalculatePriceInput['items'][number]['priceRules'][number],
+  pet: CalculatePriceInput['pet'],
+) {
+  const weight = decimalToNumber(pet.weightKg)
+  const weightMin = decimalToNumber(rule.weightMin)
+  const weightMax = decimalToNumber(rule.weightMax)
+  const petBreed = (pet.breed ?? '').trim().toLowerCase()
+  const ruleBreed = (rule.breed ?? '').trim().toLowerCase()
+
+  if (weightMin !== null && (weight === null || weight < weightMin))
+    return false
+  if (weightMax !== null && (weight === null || weight > weightMax))
+    return false
+  if (ruleBreed && petBreed !== ruleBreed) return false
+
+  return true
+}
+
+function calculatePrice(input: CalculatePriceInput): PriceCalculation {
+  const calculatedItems = input.items.map((item) => {
+    let unitPrice = item.basePrice
+    const priceAdjustments: PriceAdjustmentDetail[] = []
+
+    item.priceRules.forEach((rule) => {
+      if (!ruleMatchesPet(rule, input.pet)) return
+
+      const amount =
+        rule.adjustmentType === 'PERCENTAGE'
+          ? Math.round((unitPrice * rule.priceAdjustment) / 100)
+          : rule.priceAdjustment
+
+      unitPrice += amount
+      priceAdjustments.push({
+        ruleId: rule.id,
+        ruleName: rule.name,
+        amount,
+      })
+    })
+
+    return {
+      serviceId: item.serviceId,
+      serviceName: item.serviceName,
+      category: item.category,
+      basePrice: item.basePrice,
+      unitPrice,
+      quantity: item.quantity,
+      amount: unitPrice * item.quantity,
+      estimatedMinutes: item.estimatedMinutes * item.quantity,
+      priceAdjustments,
+    }
+  })
+
+  const serviceSubtotal = calculatedItems.reduce(
+    (sum, item) => sum + item.amount,
+    0,
+  )
+  const subtotalAmount = serviceSubtotal + input.staffSurcharge
+  const memberDiscountRate =
+    decimalToNumber(input.member?.plan.discountRate) ?? 0
+  const discountAmount = Math.round(subtotalAmount * memberDiscountRate)
+  const totalAmount = Math.max(0, subtotalAmount - discountAmount)
+  const estimatedMinutes = calculatedItems.reduce(
+    (sum, item) => sum + item.estimatedMinutes,
+    0,
+  )
+
+  return {
+    items: calculatedItems,
+    subtotalAmount,
+    discountAmount,
+    totalAmount,
+    staffSurcharge: input.staffSurcharge,
+    estimatedMinutes,
+    memberDiscountRate,
+    memberName: input.member?.plan.name ?? null,
+  }
+}
+
+export async function calculateOrderPrice(
+  items: OrderItemInput[],
+  petId: string,
+  staffId?: string,
+  memberId?: string,
+): Promise<PriceCalculation> {
+  const parsed = orderItemInputSchema.safeParse(items)
+  if (!parsed.success) return emptyPriceCalculation('服務數量格式不正確')
+  if (!petId) return emptyPriceCalculation('缺少寵物 ID')
+  if (parsed.data.length === 0) return emptyPriceCalculation()
+
+  try {
+    const quantityByServiceId = new Map(
+      parsed.data.map((item) => [item.serviceId, item.quantity]),
+    )
+
+    const [services, pet, staff, explicitMember] = await Promise.all([
+      prismaAdmin.service.findMany({
+        where: {
+          id: { in: parsed.data.map((item) => item.serviceId) },
+          isActive: true,
+        },
+        select: {
+          id: true,
+          name: true,
+          category: true,
+          basePrice: true,
+          estimatedMinutes: true,
+          priceRules: {
+            where: { isActive: true },
+            select: {
+              id: true,
+              name: true,
+              weightMin: true,
+              weightMax: true,
+              breed: true,
+              priceAdjustment: true,
+              adjustmentType: true,
+            },
+          },
+        },
+      }),
+      prismaAdmin.pet.findUnique({
+        where: { id: petId },
+        select: {
+          weightKg: true,
+          breed: true,
+          customer: {
+            select: {
+              member: {
+                select: {
+                  expiresAt: true,
+                  plan: {
+                    select: {
+                      name: true,
+                      discountRate: true,
+                      isActive: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      }),
+      staffId
+        ? prismaAdmin.staff.findFirst({
+            where: { id: staffId, isActive: true },
+            select: { surcharge: true },
+          })
+        : Promise.resolve(null),
+      memberId
+        ? prismaAdmin.member.findUnique({
+            where: { id: memberId },
+            select: {
+              expiresAt: true,
+              plan: {
+                select: {
+                  name: true,
+                  discountRate: true,
+                  isActive: true,
+                },
+              },
+            },
+          })
+        : Promise.resolve(null),
+    ])
+
+    if (!pet) return emptyPriceCalculation('找不到寵物資料')
+
+    const now = new Date()
+    const member = explicitMember ?? pet.customer.member
+    const activeMember =
+      member &&
+      member.plan.isActive &&
+      (!member.expiresAt || member.expiresAt > now)
+        ? member
+        : null
+
+    const serviceItems = services.map((service) => ({
+      serviceId: service.id,
+      serviceName: service.name,
+      category: service.category,
+      basePrice: service.basePrice,
+      estimatedMinutes: service.estimatedMinutes,
+      quantity: quantityByServiceId.get(service.id) ?? 1,
+      priceRules: service.priceRules,
+    }))
+
+    return calculatePrice({
+      items: serviceItems,
+      pet,
+      staffSurcharge: staff?.surcharge ?? 0,
+      member: activeMember,
+    })
+  } catch (e) {
+    console.error(e)
+    return emptyPriceCalculation('試算金額失敗，請稍後再試')
   }
 }
 
@@ -268,6 +611,7 @@ const createOrderSchema = z.object({
   scheduledAt: z.string(),
   estimatedDuration: z.number().int().positive(),
   pickupDeadlineAt: z.string(),
+  notes: z.string().optional(),
 })
 
 export async function createDraftOrder(

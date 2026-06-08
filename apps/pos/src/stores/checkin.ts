@@ -5,7 +5,14 @@ import { create } from 'zustand'
 export interface SelectedService {
   serviceId: string
   serviceName: string
+  basePrice: number
   unitPrice: number
+  quantity: number
+  estimatedMinutes: number
+  priceAdjustments: Array<{
+    ruleName: string
+    amount: number
+  }>
 }
 
 const initialState = {
@@ -46,6 +53,8 @@ const initialState = {
 
   contractId: null as string | null,
   pdfUrl: null as string | null,
+
+  orderNotes: '',
 }
 
 type State = typeof initialState
@@ -81,6 +90,12 @@ interface Actions {
     staffName: string
     staffSurcharge: number
   }) => void
+  setPriceQuote: (data: {
+    estimatedDuration: number
+    subtotalAmount: number
+    discountAmount: number
+    totalAmount: number
+  }) => void
   setOrder: (data: {
     scheduledAt: string
     estimatedDuration: number
@@ -91,6 +106,7 @@ interface Actions {
     orderId: string
   }) => void
   setContract: (data: { contractId: string; pdfUrl: string }) => void
+  setOrderNotes: (notes: string) => void
   reset: () => void
 }
 
@@ -100,7 +116,9 @@ export const useCheckinStore = create<State & Actions>((set) => ({
   setPet: (data) => set(data),
   setServices: (selectedServices) => set({ selectedServices }),
   setStaff: (data) => set(data),
+  setPriceQuote: (data) => set(data),
   setOrder: (data) => set(data),
   setContract: (data) => set(data),
+  setOrderNotes: (orderNotes) => set({ orderNotes }),
   reset: () => set(initialState),
 }))
