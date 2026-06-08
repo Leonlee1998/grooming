@@ -8,7 +8,7 @@ import { BigButton } from '@/components/ui/BigButton'
 import { CancelCheckinButton } from '@/components/checkin/CancelCheckinButton'
 import { SignaturePad } from '@/components/signature/SignaturePad'
 import { useCheckinStore } from '@/stores/checkin'
-import { signAndFinalize } from '../actions'
+import { finalizeOrder } from '@/app/actions/contract'
 
 const STEPS = ['客戶', '寵物', '服務', '確認', '簽名']
 
@@ -35,6 +35,7 @@ function bool(v: boolean) {
 export default function SignPage() {
   const router = useRouter()
   const store = useCheckinStore()
+  const setOrderId = useCheckinStore((s) => s.setOrderId)
   const setContract = useCheckinStore((s) => s.setContract)
 
   const [signed, setSigned] = useState(false)
@@ -48,7 +49,11 @@ export default function SignPage() {
   }, [])
 
   async function handleSubmit() {
-    if (!store.orderId || !store.customerId || !store.petId) {
+    if (
+      !store.customerId ||
+      !store.petId ||
+      store.selectedServices.length === 0
+    ) {
       router.replace('/checkin')
       return
     }
@@ -95,12 +100,22 @@ export default function SignPage() {
       signedAt,
     }
 
-    const result = await signAndFinalize({
-      orderId: store.orderId,
+    const result = await finalizeOrder({
       customerId: store.customerId,
       petId: store.petId,
+      staffId: store.staffId ?? undefined,
+      orderItems: store.selectedServices.map((s) => ({
+        serviceId: s.serviceId,
+        serviceName: s.serviceName,
+        unitPrice: s.unitPrice,
+        quantity: s.quantity,
+      })),
+      subtotalAmount: store.subtotalAmount,
+      discountAmount: store.discountAmount,
+      totalAmount: store.totalAmount,
       contractData,
       signatureDataUrl: dataUrl,
+      notes: store.orderNotes || undefined,
     })
 
     setLoading(false)
@@ -109,6 +124,7 @@ export default function SignPage() {
       return
     }
 
+    setOrderId(result.data.orderId)
     setContract({
       contractId: result.data.contractId,
       pdfUrl: result.data.pdfUrl,

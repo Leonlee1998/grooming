@@ -96,6 +96,12 @@ interface Actions {
     discountAmount: number
     totalAmount: number
   }) => void
+  /** 設定排程時間（confirm page 使用，不含 orderId） */
+  setSchedule: (data: {
+    scheduledAt: string
+    estimatedDuration: number
+    pickupDeadlineAt: string
+  }) => void
   setOrder: (data: {
     scheduledAt: string
     estimatedDuration: number
@@ -105,6 +111,7 @@ interface Actions {
     totalAmount: number
     orderId: string
   }) => void
+  setOrderId: (orderId: string) => void
   setContract: (data: { contractId: string; pdfUrl: string }) => void
   setOrderNotes: (notes: string) => void
   reset: () => void
@@ -117,7 +124,9 @@ export const useCheckinStore = create<State & Actions>((set) => ({
   setServices: (selectedServices) => set({ selectedServices }),
   setStaff: (data) => set(data),
   setPriceQuote: (data) => set(data),
+  setSchedule: (data) => set(data),
   setOrder: (data) => set(data),
+  setOrderId: (orderId) => set({ orderId }),
   setContract: (data) => set(data),
   setOrderNotes: (orderNotes) => set({ orderNotes }),
   reset: () => set(initialState),

@@ -2,7 +2,6 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "baseUrl": ".",
-    "rootDir": "src",
     "paths": {
       "@repo/db": ["../db/src"],
       "@repo/db/*": ["../db/src/*"],
@@ -10,6 +9,6 @@
       "@repo/line-bot/*": ["./src/*"]
     }
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "../db/src/**/*.ts"],
   "exclude": ["node_modules"]
 }

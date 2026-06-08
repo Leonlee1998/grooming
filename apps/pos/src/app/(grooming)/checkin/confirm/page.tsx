@@ -7,7 +7,6 @@ import { StepIndicator } from '@/components/ui/StepIndicator'
 import { BigButton } from '@/components/ui/BigButton'
 import { CancelCheckinButton } from '@/components/checkin/CancelCheckinButton'
 import { useCheckinStore } from '@/stores/checkin'
-import { createDraftOrder } from '../actions'
 
 const STEPS = ['客戶', '寵物', '服務', '確認', '簽名']
 
@@ -102,8 +101,6 @@ export default function ConfirmPage() {
   const store = useCheckinStore()
 
   const [scheduledAt, setScheduledAt] = useState(now30)
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     if (
@@ -123,44 +120,15 @@ export default function ConfirmPage() {
   const discountAmount = store.discountAmount
   const total = store.totalAmount
 
-  async function handleConfirm() {
+  function handleConfirm() {
     if (!store.customerId || !store.petId) {
       router.replace('/checkin')
       return
     }
-    setError('')
-    setLoading(true)
-    const result = await createDraftOrder({
-      customerId: store.customerId,
-      petId: store.petId,
-      staffId: store.staffId ?? undefined,
-      items: store.selectedServices.map((s) => ({
-        serviceId: s.serviceId,
-        serviceName: s.serviceName,
-        unitPrice: s.unitPrice,
-        quantity: s.quantity,
-      })),
-      subtotalAmount: subtotal,
-      discountAmount,
-      totalAmount: total,
+    store.setSchedule({
       scheduledAt: new Date(scheduledAt).toISOString(),
       estimatedDuration,
       pickupDeadlineAt: new Date(pickupDeadline).toISOString(),
-      notes: store.orderNotes || undefined,
-    })
-    setLoading(false)
-    if (!result.ok) {
-      setError(result.error)
-      return
-    }
-    store.setOrder({
-      scheduledAt: new Date(scheduledAt).toISOString(),
-      estimatedDuration,
-      pickupDeadlineAt: new Date(pickupDeadline).toISOString(),
-      subtotalAmount: subtotal,
-      discountAmount,
-      totalAmount: total,
-      orderId: result.data.orderId,
     })
     router.push('/checkin/sign')
   }
@@ -430,12 +398,6 @@ export default function ConfirmPage() {
           </div>
         )}
 
-        {error && (
-          <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-            {error}
-          </p>
-        )}
-
         {/* 底部按鈕 */}
         <div className="grid grid-cols-[104px_minmax(0,1fr)_128px] gap-3 pt-1">
           <BigButton
@@ -444,8 +406,8 @@ export default function ConfirmPage() {
           >
             返回修改
           </BigButton>
-          <BigButton fullWidth onClick={handleConfirm} disabled={loading}>
-            {loading ? '建立訂單中…' : '確認，前往簽名'}
+          <BigButton fullWidth onClick={handleConfirm}>
+            確認，前往簽名
           </BigButton>
           <CancelCheckinButton />
         </div>

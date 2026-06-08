@@ -400,6 +400,18 @@ model Order {
   @@index([status])
 }
 
+// ─── LINE Bot Session ─────────────────────────────────────────────────────────
+
+model LineSession {
+  lineUserId String   @id @map("line_user_id")
+  state      Json
+  expiresAt  DateTime @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("line_sessions")
+}
+
 // ─── OrderItem ────────────────────────────────────────────────────────────────
 
 model OrderItem {
@@ -419,3 +431,4 @@ model OrderItem {
   @@index([orderId])
   @@index([serviceId])
 }
+

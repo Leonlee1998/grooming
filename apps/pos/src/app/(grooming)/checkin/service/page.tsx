@@ -245,292 +245,292 @@ export default function ServicePage() {
           </p>
         </div>
 
-        {loading ? (
-          <div className="rounded-2xl border border-stone-200 bg-white py-16 text-center text-stone-400">
-            載入服務項目中…
-          </div>
-        ) : (
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_400px]">
-            <section className="flex flex-col gap-5">
-              {Object.entries(groupedServices).map(([category, items]) => (
-                <div key={category} className="flex flex-col gap-3">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-sm font-bold uppercase text-stone-500">
-                      {CATEGORY_LABEL[category] ?? category}
-                    </h2>
-                    <span className="text-xs text-stone-400">
-                      {items.length} 項
-                    </span>
-                  </div>
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_400px]">
+          <section className="flex flex-col gap-5">
+            {loading ? (
+              <div className="rounded-2xl border border-stone-200 bg-white py-16 text-center text-stone-400">
+                載入服務項目中…
+              </div>
+            ) : (
+              <>
+                {Object.entries(groupedServices).map(([category, items]) => (
+                  <div key={category} className="flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-sm font-bold uppercase text-stone-500">
+                        {CATEGORY_LABEL[category] ?? category}
+                      </h2>
+                      <span className="text-xs text-stone-400">
+                        {items.length} 項
+                      </span>
+                    </div>
 
-                  <div className="grid gap-3 md:grid-cols-2">
-                    {items.map((service) => {
-                      const isSelected = cartServiceIds.has(service.id)
-                      return (
-                        <button
-                          key={service.id}
-                          type="button"
-                          onClick={() => toggleService(service)}
-                          className={[
-                            'min-h-[132px] rounded-2xl border-2 bg-white px-5 py-4 text-left transition-colors',
-                            isSelected
-                              ? 'border-emerald-700 bg-emerald-50 shadow-sm'
-                              : 'border-stone-200 hover:border-emerald-300 active:bg-stone-50',
-                          ].join(' ')}
-                        >
-                          <div className="flex h-full flex-col justify-between gap-4">
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <p className="text-xl font-bold text-stone-900">
-                                  {service.name}
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {items.map((service) => {
+                        const isSelected = cartServiceIds.has(service.id)
+                        return (
+                          <button
+                            key={service.id}
+                            type="button"
+                            onClick={() => toggleService(service)}
+                            className={[
+                              'min-h-[132px] rounded-2xl border-2 bg-white px-5 py-4 text-left transition-colors',
+                              isSelected
+                                ? 'border-emerald-700 bg-emerald-50 shadow-sm'
+                                : 'border-stone-200 hover:border-emerald-300 active:bg-stone-50',
+                            ].join(' ')}
+                          >
+                            <div className="flex h-full flex-col justify-between gap-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-xl font-bold text-stone-900">
+                                    {service.name}
+                                  </p>
+                                  <p className="mt-1 text-sm text-stone-500">
+                                    約 {formatMinutes(service.estimatedMinutes)}
+                                  </p>
+                                </div>
+                                <span
+                                  className={[
+                                    'flex h-8 w-8 items-center justify-center rounded-full border text-lg font-bold',
+                                    isSelected
+                                      ? 'border-emerald-700 bg-emerald-700 text-white'
+                                      : 'border-stone-300 text-stone-300',
+                                  ].join(' ')}
+                                >
+                                  {isSelected ? '✓' : '+'}
+                                </span>
+                              </div>
+
+                              <div className="flex items-end justify-between gap-3">
+                                <p className="text-sm text-stone-400">
+                                  基礎價格
                                 </p>
-                                <p className="mt-1 text-sm text-stone-500">
-                                  約 {formatMinutes(service.estimatedMinutes)}
+                                <p className="text-2xl font-bold text-emerald-800">
+                                  {formatMoney(service.basePrice)}
                                 </p>
                               </div>
-                              <span
-                                className={[
-                                  'flex h-8 w-8 items-center justify-center rounded-full border text-lg font-bold',
-                                  isSelected
-                                    ? 'border-emerald-700 bg-emerald-700 text-white'
-                                    : 'border-stone-300 text-stone-300',
-                                ].join(' ')}
-                              >
-                                {isSelected ? '✓' : '+'}
-                              </span>
                             </div>
-
-                            <div className="flex items-end justify-between gap-3">
-                              <p className="text-sm text-stone-400">基礎價格</p>
-                              <p className="text-2xl font-bold text-emerald-800">
-                                {formatMoney(service.basePrice)}
-                              </p>
-                            </div>
-                          </div>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              ))}
-            </section>
-
-            <aside className="lg:sticky lg:top-6 lg:self-start">
-              <div className="flex flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
-                <div className="border-b border-stone-200 bg-stone-900 px-5 py-4 text-white">
-                  <div className="flex items-center justify-between">
-                    <p className="text-lg font-bold">已選服務摘要</p>
-                    <span className="rounded-full bg-white/10 px-3 py-1 text-sm">
-                      {selectedCount} 次
-                    </span>
-                  </div>
-                  <p className="mt-1 text-sm text-stone-300">
-                    法規 §3：費用、服務人員與次數需先揭露
-                  </p>
-                </div>
-
-                <div className="flex max-h-[calc(100vh-260px)] flex-col gap-5 overflow-y-auto px-5 py-5">
-                  {cartItems.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-stone-300 py-10 text-center text-stone-400">
-                      從左側點選服務加入
+                          </button>
+                        )
+                      })}
                     </div>
-                  ) : (
-                    <div className="flex flex-col gap-3">
-                      {calculation.items.map((item) => (
-                        <div
-                          key={item.serviceId}
-                          className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-3"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="font-bold text-stone-900">
-                                {item.serviceName}
-                              </p>
-                              <p className="mt-0.5 text-sm text-stone-500">
-                                單價 {formatMoney(item.unitPrice)} ·{' '}
-                                {formatMinutes(item.estimatedMinutes)}
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => removeItem(item.serviceId)}
-                              className="min-h-[40px] rounded-lg px-2 text-sm text-stone-400 active:bg-stone-200"
-                            >
-                              移除
-                            </button>
-                          </div>
+                  </div>
+                ))}
+              </>
+            )}
+          </section>
 
-                          {item.priceAdjustments.length > 0 && (
-                            <div className="mt-2 flex flex-col gap-1 border-t border-stone-200 pt-2">
-                              {item.priceAdjustments.map((rule) => (
-                                <div
-                                  key={rule.ruleId}
-                                  className="flex justify-between text-xs text-amber-700"
-                                >
-                                  <span>{rule.ruleName}</span>
-                                  <span>+{formatMoney(rule.amount)}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
+          <aside className="lg:sticky lg:top-6 lg:self-start">
+            <div className="flex flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
+              <div className="border-b border-stone-200 bg-stone-900 px-5 py-4 text-white">
+                <div className="flex items-center justify-between">
+                  <p className="text-lg font-bold">已選服務摘要</p>
+                  <span className="rounded-full bg-white/10 px-3 py-1 text-sm">
+                    {selectedCount} 次
+                  </span>
+                </div>
+                <p className="mt-1 text-sm text-stone-300">
+                  法規 §3：費用、服務人員與次數需先揭露
+                </p>
+              </div>
 
-                          <div className="mt-3 flex items-center justify-between gap-3">
-                            <div className="flex items-center rounded-xl border border-stone-300 bg-white">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  updateQuantity(
-                                    item.serviceId,
-                                    item.quantity - 1,
-                                  )
-                                }
-                                className="min-h-[44px] w-12 text-xl font-bold text-stone-600 disabled:opacity-30"
-                                disabled={item.quantity <= 1}
-                              >
-                                −
-                              </button>
-                              <span className="w-10 text-center text-lg font-bold text-stone-900">
-                                {item.quantity}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  updateQuantity(
-                                    item.serviceId,
-                                    item.quantity + 1,
-                                  )
-                                }
-                                className="min-h-[44px] w-12 text-xl font-bold text-stone-600"
-                              >
-                                +
-                              </button>
-                            </div>
-                            <p className="text-xl font-bold text-stone-900">
-                              {formatMoney(item.amount)}
+              <div className="flex max-h-[calc(100vh-260px)] flex-col gap-5 overflow-y-auto px-5 py-5">
+                {cartItems.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-stone-300 py-10 text-center text-stone-400">
+                    從左側點選服務加入
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {calculation.items.map((item) => (
+                      <div
+                        key={item.serviceId}
+                        className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-3"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-bold text-stone-900">
+                              {item.serviceName}
+                            </p>
+                            <p className="mt-0.5 text-sm text-stone-500">
+                              單價 {formatMoney(item.unitPrice)} ·{' '}
+                              {formatMinutes(item.estimatedMinutes)}
                             </p>
                           </div>
+                          <button
+                            type="button"
+                            onClick={() => removeItem(item.serviceId)}
+                            className="min-h-[40px] rounded-lg px-2 text-sm text-stone-400 active:bg-stone-200"
+                          >
+                            移除
+                          </button>
                         </div>
-                      ))}
-                    </div>
-                  )}
 
-                  <div className="flex flex-col gap-3">
-                    <p className="text-sm font-bold text-stone-500">
-                      指定美容師
-                    </p>
+                        {item.priceAdjustments.length > 0 && (
+                          <div className="mt-2 flex flex-col gap-1 border-t border-stone-200 pt-2">
+                            {item.priceAdjustments.map((rule) => (
+                              <div
+                                key={rule.ruleId}
+                                className="flex justify-between text-xs text-amber-700"
+                              >
+                                <span>{rule.ruleName}</span>
+                                <span>+{formatMoney(rule.amount)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="mt-3 flex items-center justify-between gap-3">
+                          <div className="flex items-center rounded-xl border border-stone-300 bg-white">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateQuantity(
+                                  item.serviceId,
+                                  item.quantity - 1,
+                                )
+                              }
+                              className="min-h-[44px] w-12 text-xl font-bold text-stone-600 disabled:opacity-30"
+                              disabled={item.quantity <= 1}
+                            >
+                              −
+                            </button>
+                            <span className="w-10 text-center text-lg font-bold text-stone-900">
+                              {item.quantity}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateQuantity(
+                                  item.serviceId,
+                                  item.quantity + 1,
+                                )
+                              }
+                              className="min-h-[44px] w-12 text-xl font-bold text-stone-600"
+                            >
+                              +
+                            </button>
+                          </div>
+                          <p className="text-xl font-bold text-stone-900">
+                            {formatMoney(item.amount)}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-3">
+                  <p className="text-sm font-bold text-stone-500">指定美容師</p>
+                  <label
+                    className={[
+                      'flex min-h-[56px] cursor-pointer items-center justify-between rounded-xl border-2 px-4 transition-colors',
+                      selectedStaffId === null
+                        ? 'border-emerald-700 bg-emerald-50'
+                        : 'border-stone-200 bg-white',
+                    ].join(' ')}
+                  >
+                    <span className="font-semibold text-stone-800">不指定</span>
+                    <span className="flex items-center gap-3 text-sm text-stone-500">
+                      +$0
+                      <input
+                        type="radio"
+                        name="staff"
+                        checked={selectedStaffId === null}
+                        onChange={() => setSelectedStaffId(null)}
+                        className="h-5 w-5 accent-emerald-700"
+                      />
+                    </span>
+                  </label>
+
+                  {staff.map((item) => (
                     <label
+                      key={item.id}
                       className={[
                         'flex min-h-[56px] cursor-pointer items-center justify-between rounded-xl border-2 px-4 transition-colors',
-                        selectedStaffId === null
+                        selectedStaffId === item.id
                           ? 'border-emerald-700 bg-emerald-50'
                           : 'border-stone-200 bg-white',
                       ].join(' ')}
                     >
                       <span className="font-semibold text-stone-800">
-                        不指定
+                        {item.name}
                       </span>
                       <span className="flex items-center gap-3 text-sm text-stone-500">
-                        +$0
+                        +{formatMoney(item.surcharge)}
                         <input
                           type="radio"
                           name="staff"
-                          checked={selectedStaffId === null}
-                          onChange={() => setSelectedStaffId(null)}
+                          checked={selectedStaffId === item.id}
+                          onChange={() => setSelectedStaffId(item.id)}
                           className="h-5 w-5 accent-emerald-700"
                         />
                       </span>
                     </label>
-
-                    {staff.map((item) => (
-                      <label
-                        key={item.id}
-                        className={[
-                          'flex min-h-[56px] cursor-pointer items-center justify-between rounded-xl border-2 px-4 transition-colors',
-                          selectedStaffId === item.id
-                            ? 'border-emerald-700 bg-emerald-50'
-                            : 'border-stone-200 bg-white',
-                        ].join(' ')}
-                      >
-                        <span className="font-semibold text-stone-800">
-                          {item.name}
-                        </span>
-                        <span className="flex items-center gap-3 text-sm text-stone-500">
-                          +{formatMoney(item.surcharge)}
-                          <input
-                            type="radio"
-                            name="staff"
-                            checked={selectedStaffId === item.id}
-                            onChange={() => setSelectedStaffId(item.id)}
-                            className="h-5 w-5 accent-emerald-700"
-                          />
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-
-                  <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
-                    <div className="flex justify-between border-b border-stone-100 py-2">
-                      <span className="text-stone-500">預計時間</span>
-                      <span className="font-bold text-stone-900">
-                        {pricingLoading
-                          ? '試算中…'
-                          : formatMinutes(calculation.estimatedMinutes)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between border-b border-stone-100 py-2">
-                      <span className="text-stone-500">小計</span>
-                      <span className="font-bold text-stone-900">
-                        {formatMoney(calculation.subtotalAmount)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between border-b border-stone-100 py-2">
-                      <span className="text-stone-500">
-                        會員折扣
-                        {calculation.memberName
-                          ? `（${calculation.memberName}）`
-                          : ''}
-                      </span>
-                      <span className="font-bold text-red-600">
-                        −{formatMoney(calculation.discountAmount)}
-                      </span>
-                    </div>
-                    <div className="flex items-end justify-between pt-3">
-                      <span className="text-base font-bold text-stone-700">
-                        總計
-                      </span>
-                      <span className="text-3xl font-bold text-emerald-800">
-                        {formatMoney(calculation.totalAmount)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {(error || calculation.error) && (
-                    <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
-                      {error || calculation.error}
-                    </p>
-                  )}
+                  ))}
                 </div>
 
-                <div className="grid grid-cols-[104px_minmax(0,1fr)_128px] gap-3 border-t border-stone-200 bg-white px-5 py-4">
-                  <BigButton
-                    variant="secondary"
-                    onClick={() => router.push('/checkin/pet')}
-                  >
-                    返回
-                  </BigButton>
-                  <BigButton
-                    fullWidth
-                    onClick={handleConfirm}
-                    disabled={!canContinue}
-                  >
-                    {pricingLoading ? '試算中…' : '確認費用並繼續'}
-                  </BigButton>
-                  <CancelCheckinButton />
+                <div className="rounded-xl border border-stone-200 bg-white px-4 py-4">
+                  <div className="flex justify-between border-b border-stone-100 py-2">
+                    <span className="text-stone-500">預計時間</span>
+                    <span className="font-bold text-stone-900">
+                      {pricingLoading
+                        ? '試算中…'
+                        : formatMinutes(calculation.estimatedMinutes)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between border-b border-stone-100 py-2">
+                    <span className="text-stone-500">小計</span>
+                    <span className="font-bold text-stone-900">
+                      {formatMoney(calculation.subtotalAmount)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between border-b border-stone-100 py-2">
+                    <span className="text-stone-500">
+                      會員折扣
+                      {calculation.memberName
+                        ? `（${calculation.memberName}）`
+                        : ''}
+                    </span>
+                    <span className="font-bold text-red-600">
+                      −{formatMoney(calculation.discountAmount)}
+                    </span>
+                  </div>
+                  <div className="flex items-end justify-between pt-3">
+                    <span className="text-base font-bold text-stone-700">
+                      總計
+                    </span>
+                    <span className="text-3xl font-bold text-emerald-800">
+                      {formatMoney(calculation.totalAmount)}
+                    </span>
+                  </div>
                 </div>
+
+                {(error || calculation.error) && (
+                  <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {error || calculation.error}
+                  </p>
+                )}
               </div>
-            </aside>
-          </div>
-        )}
+
+              <div className="grid grid-cols-[104px_minmax(0,1fr)_128px] gap-3 border-t border-stone-200 bg-white px-5 py-4">
+                <BigButton
+                  variant="secondary"
+                  onClick={() => router.push('/checkin/pet')}
+                >
+                  返回
+                </BigButton>
+                <BigButton
+                  fullWidth
+                  onClick={handleConfirm}
+                  disabled={!canContinue}
+                >
+                  {pricingLoading ? '試算中…' : '確認費用並繼續'}
+                </BigButton>
+                <CancelCheckinButton />
+              </div>
+            </div>
+          </aside>
+        </div>
       </div>
     </PosLayout>
   )
