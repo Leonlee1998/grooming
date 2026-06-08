@@ -19,6 +19,7 @@ export async function searchCustomerByPhone(phone: string): Promise<
     email: string | null
     emergencyContact: string | null
     emergencyPhone: string | null
+    petCount: number
   } | null>
 > {
   const cleaned = phone.trim().replace(/\s/g, '')
@@ -33,9 +34,12 @@ export async function searchCustomerByPhone(phone: string): Promise<
         email: true,
         emergencyContact: true,
         emergencyPhone: true,
+        _count: { select: { pets: true } },
       },
     })
-    return { ok: true, data: customer }
+    if (!customer) return { ok: true, data: null }
+    const { _count, ...rest } = customer
+    return { ok: true, data: { ...rest, petCount: _count.pets } }
   } catch {
     return { ok: false, error: '查詢客戶失敗，請稍後再試' }
   }
