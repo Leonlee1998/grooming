@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadEnvFile } from "node:process";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -273,12 +273,16 @@ async function main() {
   ]);
   console.log(`PriceRule: ${priceRules.map((rule) => rule.name).join(", ")}`);
 
+  const templateHtml = readFileSync(
+    resolve("../contract/templates/single-service.html"),
+    "utf-8",
+  );
   const contractTemplate = await prisma.contractTemplate.upsert({
     where: { id: "contract-template-standard-single-service" },
     update: {
       name: "標準美容服務契約",
       type: "SINGLE_SERVICE",
-      htmlContent: "<!-- 模板內容在 Phase 2 填入 -->",
+      htmlContent: templateHtml,
       customFields: null,
       isActive: true,
       version: 1,
@@ -287,7 +291,7 @@ async function main() {
       id: "contract-template-standard-single-service",
       name: "標準美容服務契約",
       type: "SINGLE_SERVICE",
-      htmlContent: "<!-- 模板內容在 Phase 2 填入 -->",
+      htmlContent: templateHtml,
       version: 1,
     },
   });
