@@ -649,6 +649,23 @@ export async function createDraftOrder(
   }
 }
 
+export async function cancelDraftOrder(
+  orderId: string | null,
+): Promise<ActionResult<{ cancelled: boolean }>> {
+  if (!orderId) return { ok: true, data: { cancelled: false } }
+
+  try {
+    const result = await prismaAdmin.order.updateMany({
+      where: { id: orderId, status: 'DRAFT' },
+      data: { status: 'CANCELLED' },
+    })
+    return { ok: true, data: { cancelled: result.count > 0 } }
+  } catch (e) {
+    console.error(e)
+    return { ok: false, error: '取消草稿訂單失敗' }
+  }
+}
+
 // ─── Step 5: Sign + Finalize ──────────────────────────────────────────────
 
 const signSchema = z.object({

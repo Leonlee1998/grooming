@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { PosLayout } from '@/components/layout/PosLayout'
 import { StepIndicator } from '@/components/ui/StepIndicator'
 import { BigButton } from '@/components/ui/BigButton'
+import { CancelCheckinButton } from '@/components/checkin/CancelCheckinButton'
 import { SignaturePad } from '@/components/signature/SignaturePad'
 import { useCheckinStore } from '@/stores/checkin'
 import { signAndFinalize } from '../actions'
@@ -78,8 +79,9 @@ export default function SignPage() {
       preferredVetName: store.preferredVetName,
       preferredVetPhone: store.preferredVetPhone || '未填',
       services: store.selectedServices.map((s) => ({
-        serviceName: s.serviceName,
-        unitPrice: s.unitPrice,
+        serviceName:
+          s.quantity > 1 ? `${s.serviceName} x ${s.quantity}` : s.serviceName,
+        unitPrice: s.unitPrice * s.quantity,
       })),
       staffName: store.staffName || '不指定',
       staffSurcharge: store.staffSurcharge,
@@ -149,11 +151,20 @@ export default function SignPage() {
           <div className="flex flex-col gap-1 pt-1 border-t border-stone-100">
             {store.selectedServices.map((s) => (
               <div key={s.serviceId} className="flex justify-between">
-                <span>{s.serviceName}</span>
-                <span className="font-medium">${s.unitPrice}</span>
+                <span>
+                  {s.serviceName}
+                  {s.quantity > 1 ? ` × ${s.quantity}` : ''}
+                </span>
+                <span className="font-medium">${s.unitPrice * s.quantity}</span>
               </div>
             ))}
           </div>
+          {store.discountAmount > 0 && (
+            <div className="flex justify-between text-red-600">
+              <span>折扣</span>
+              <span className="font-medium">−${store.discountAmount}</span>
+            </div>
+          )}
           <div className="flex justify-between pt-1 border-t border-stone-100 font-bold text-stone-900">
             <span>總計</span>
             <span>${store.totalAmount}</span>
@@ -201,11 +212,10 @@ export default function SignPage() {
 
         {error && <p className="text-red-600 text-sm">{error}</p>}
 
-        <div className="flex gap-3">
+        <div className="grid grid-cols-[104px_minmax(0,1fr)_128px] gap-3">
           <BigButton
             variant="secondary"
             onClick={() => router.push('/checkin/confirm')}
-            className="w-28"
             disabled={loading}
           >
             返回
@@ -217,6 +227,7 @@ export default function SignPage() {
           >
             {loading ? '產生 PDF 中…（約 3-5 秒）' : '完成簽約'}
           </BigButton>
+          <CancelCheckinButton />
         </div>
       </div>
     </PosLayout>

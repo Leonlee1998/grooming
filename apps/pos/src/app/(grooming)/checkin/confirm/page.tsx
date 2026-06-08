@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { PosLayout } from '@/components/layout/PosLayout'
 import { StepIndicator } from '@/components/ui/StepIndicator'
 import { BigButton } from '@/components/ui/BigButton'
+import { CancelCheckinButton } from '@/components/checkin/CancelCheckinButton'
 import { useCheckinStore } from '@/stores/checkin'
 import { createDraftOrder } from '../actions'
 
@@ -38,16 +39,23 @@ export default function ConfirmPage() {
   const store = useCheckinStore()
 
   const [scheduledAt, setScheduledAt] = useState(now30)
-  const [discount, setDiscount] = useState(0)
+  const [discount, setDiscount] = useState(store.discountAmount)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  const estimatedDuration =
-    store.selectedServices.reduce((sum) => sum + 60, 0) || 60
+  const calculatedDuration =
+    store.selectedServices.reduce(
+      (sum, service) => sum + service.estimatedMinutes,
+      0,
+    ) || 60
+  const estimatedDuration = store.estimatedDuration || calculatedDuration
   const pickupDeadline = addMinutes(scheduledAt, estimatedDuration)
-  const subtotal =
-    store.selectedServices.reduce((sum, s) => sum + s.unitPrice, 0) +
-    store.staffSurcharge
+  const calculatedSubtotal =
+    store.selectedServices.reduce(
+      (sum, service) => sum + service.unitPrice * service.quantity,
+      0,
+    ) + store.staffSurcharge
+  const subtotal = store.subtotalAmount || calculatedSubtotal
   const total = Math.max(0, subtotal - discount)
 
   async function handleConfirm() {
@@ -65,7 +73,7 @@ export default function ConfirmPage() {
         serviceId: s.serviceId,
         serviceName: s.serviceName,
         unitPrice: s.unitPrice,
-        quantity: 1,
+        quantity: s.quantity,
       })),
       subtotalAmount: subtotal,
       discountAmount: discount,
@@ -73,6 +81,7 @@ export default function ConfirmPage() {
       scheduledAt: new Date(scheduledAt).toISOString(),
       estimatedDuration,
       pickupDeadlineAt: new Date(pickupDeadline).toISOString(),
+      notes: store.orderNotes || undefined,
     })
     setLoading(false)
     if (!result.ok) {
@@ -128,10 +137,30 @@ export default function ConfirmPage() {
           {store.selectedServices.map((s) => (
             <div
               key={s.serviceId}
-              className="flex justify-between py-2.5 border-b border-stone-100"
+              className="flex flex-col gap-1 py-2.5 border-b border-stone-100"
             >
-              <span className="text-stone-700">{s.serviceName}</span>
-              <span className="text-stone-900 font-medium">${s.unitPrice}</span>
+              <div className="flex justify-between gap-3">
+                <span className="text-stone-700">
+                  {s.serviceName}
+                  {s.quantity > 1 ? ` × ${s.quantity}` : ''}
+                </span>
+                <span className="text-stone-900 font-medium">
+                  ${s.unitPrice * s.quantity}
+                </span>
+              </div>
+              <div className="flex justify-between text-xs text-stone-400">
+                <span>單價 ${s.unitPrice}</span>
+                <span>約 {s.estimatedMinutes} 分鐘</span>
+              </div>
+              {s.priceAdjustments.map((rule) => (
+                <div
+                  key={rule.ruleName}
+                  className="flex justify-between text-xs text-amber-700"
+                >
+                  <span>{rule.ruleName}</span>
+                  <span>+${rule.amount}</span>
+                </div>
+              ))}
             </div>
           ))}
           {store.staffSurcharge > 0 && (
@@ -195,17 +224,17 @@ export default function ConfirmPage() {
 
         {error && <p className="text-red-600 text-sm">{error}</p>}
 
-        <div className="flex gap-3">
+        <div className="grid grid-cols-[104px_minmax(0,1fr)_128px] gap-3">
           <BigButton
             variant="secondary"
             onClick={() => router.push('/checkin/service')}
-            className="w-28"
           >
             返回
           </BigButton>
           <BigButton fullWidth onClick={handleConfirm} disabled={loading}>
             {loading ? '建立訂單中…' : '前往簽約'}
           </BigButton>
+          <CancelCheckinButton />
         </div>
       </div>
     </PosLayout>

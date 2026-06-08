@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { PosLayout } from '@/components/layout/PosLayout'
 import { StepIndicator } from '@/components/ui/StepIndicator'
 import { BigButton } from '@/components/ui/BigButton'
+import { CancelCheckinButton } from '@/components/checkin/CancelCheckinButton'
 import { useCheckinStore } from '@/stores/checkin'
 import { getPetsByCustomer, createPet, updatePetHealthInfo } from '../actions'
 
@@ -301,11 +302,10 @@ export default function PetPage() {
             )}
           </div>
 
-          <div className="flex gap-3">
+          <div className="grid grid-cols-[104px_minmax(0,1fr)_128px] gap-3">
             <BigButton
               variant="secondary"
               onClick={() => router.push('/checkin')}
-              className="w-28"
             >
               返回
             </BigButton>
@@ -320,6 +320,7 @@ export default function PetPage() {
             >
               ＋ 新增寵物
             </BigButton>
+            <CancelCheckinButton />
           </div>
         </div>
       </PosLayout>
@@ -470,13 +471,16 @@ export default function PetPage() {
               </p>
             )}
 
-            <BigButton
-              fullWidth
-              onClick={handleAddPet}
-              disabled={addLoading || !f.name.trim()}
-            >
-              {addLoading ? '儲存中…' : '儲存，進行健康確認'}
-            </BigButton>
+            <div className="grid grid-cols-[128px_minmax(0,1fr)] gap-3">
+              <CancelCheckinButton />
+              <BigButton
+                fullWidth
+                onClick={handleAddPet}
+                disabled={addLoading || !f.name.trim()}
+              >
+                {addLoading ? '儲存中…' : '儲存，進行健康確認'}
+              </BigButton>
+            </div>
           </div>
         </div>
       </PosLayout>
@@ -599,13 +603,16 @@ export default function PetPage() {
           </p>
         )}
 
-        <BigButton
-          fullWidth
-          onClick={handleHealthConfirm}
-          disabled={healthLoading}
-        >
-          {healthLoading ? '儲存中…' : '確認，選擇服務'}
-        </BigButton>
+        <div className="grid grid-cols-[128px_minmax(0,1fr)] gap-3">
+          <CancelCheckinButton />
+          <BigButton
+            fullWidth
+            onClick={handleHealthConfirm}
+            disabled={healthLoading}
+          >
+            {healthLoading ? '儲存中…' : '確認，選擇服務'}
+          </BigButton>
+        </div>
       </div>
     </PosLayout>
   )

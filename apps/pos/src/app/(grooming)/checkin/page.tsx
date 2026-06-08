@@ -29,7 +29,10 @@ const INITIAL_FORM = {
 
 export default function CheckinPage() {
   const router = useRouter()
-  const setCustomer = useCheckinStore((s) => s.setCustomer)
+  const { reset, setCustomer } = useCheckinStore((s) => ({
+    reset: s.reset,
+    setCustomer: s.setCustomer,
+  }))
 
   const [phone, setPhone] = useState('')
   const [searching, setSearching] = useState(false)
@@ -88,6 +91,11 @@ export default function CheckinPage() {
     setForm(INITIAL_FORM)
     setFormError('')
     setShowModal(true)
+  }
+
+  function returnHome() {
+    reset()
+    router.push('/')
   }
 
   async function handleCreate() {
@@ -192,6 +200,12 @@ export default function CheckinPage() {
             </BigButton>
           </div>
         )}
+
+        <div className="border-t border-stone-200 pt-5">
+          <BigButton variant="secondary" fullWidth onClick={returnHome}>
+            返回首頁
+          </BigButton>
+        </div>
       </div>
 
       {/* 新增客戶 Bottom Sheet */}
