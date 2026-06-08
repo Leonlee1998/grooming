@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "buildCommand": "pnpm --filter @pos/app build",
+  "outputDirectory": "apps/pos/.next",
+  "crons": [
+    {
+      "path": "/api/cron/overtime-check",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/pickup-reminder",
+      "schedule": "5 0 * * *"
+    }
+  ]
+}
