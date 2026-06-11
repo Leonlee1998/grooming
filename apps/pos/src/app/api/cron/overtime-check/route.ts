@@ -11,7 +11,10 @@ const RATE_PER_HOUR = parseInt(process.env.OVERTIME_RATE_PER_HOUR ?? '200', 10)
 
 function verifyBearer(req: NextRequest): boolean {
   const secret = process.env.CRON_SECRET
-  if (!secret) return true // 未設定時允許（本機開發）
+  if (!secret) {
+    // 僅開發環境允許無 secret，生產環境必須設定 CRON_SECRET
+    return process.env.NODE_ENV === 'development'
+  }
   return req.headers.get('authorization') === `Bearer ${secret}`
 }
 

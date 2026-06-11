@@ -2,6 +2,7 @@
 
 import { prismaAdmin } from '@repo/db'
 import { z } from 'zod'
+import { getStoreIdFromCustomer } from '../../../lib/store'
 
 export type StaffRow = {
   id: string
@@ -22,7 +23,7 @@ export type AppointmentWithDetails = {
     | 'COMPLETED'
     | 'CANCELLED'
     | 'NO_SHOW'
-  source: 'WALK_IN' | 'ONLINE' | 'LINE'
+  source: 'WALK_IN' | 'ONLINE' | 'LINE' | 'POS_ONSITE'
   notes: string | null
   staffId: string | null
   customer: { id: string; name: string; phone: string }
@@ -234,7 +235,9 @@ const createAppointmentSchema = z.object({
   scheduledAt: z.string().min(1),
   pickupDeadlineAt: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
-  source: z.enum(['WALK_IN', 'ONLINE', 'LINE']).default('WALK_IN'),
+  source: z
+    .enum(['WALK_IN', 'ONLINE', 'LINE', 'POS_ONSITE'])
+    .default('WALK_IN'),
 })
 
 export type CreateAppointmentInput = z.infer<typeof createAppointmentSchema>
@@ -253,8 +256,11 @@ export async function createAppointment(
     0,
   )
 
+  const storeId = await getStoreIdFromCustomer(data.customerId)
+
   const appt = await prismaAdmin.appointment.create({
     data: {
+      storeId,
       customerId: data.customerId,
       petId: data.petId,
       staffId: data.staffId ?? null,

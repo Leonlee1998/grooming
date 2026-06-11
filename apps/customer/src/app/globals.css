@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  min-height: 100vh;
+  background: #faf7f2;
+  color: #3b2f2a;
+}
+
+/* 手機優先容器：最寬 480px，桌機居中 */
+.mobile-container {
+  width: 100%;
+  max-width: 480px;
+  margin-inline: auto;
+  min-height: 100vh;
+  background: #ffffff;
+  box-shadow: 0 0 40px 0 rgb(0 0 0 / 0.08);
+}

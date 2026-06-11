@@ -10,6 +10,9 @@ function getSupabaseAdmin() {
   return createClient(url, key, { auth: { persistSession: false } })
 }
 
+const BUCKET = 'contracts'
+
+/** 上傳 PDF 並回傳 storagePath（格式：`{orderId}/signed.pdf`）。不產出 URL，由呼叫端決定 URL 效期。 */
 export async function uploadContractPdf(
   buffer: Buffer,
   orderId: string,
@@ -17,27 +20,43 @@ export async function uploadContractPdf(
   const supabase = getSupabaseAdmin()
   const storagePath = `${orderId}/signed.pdf`
 
-  const { error: uploadError } = await supabase.storage
-    .from('contracts')
+  const { error } = await supabase.storage
+    .from(BUCKET)
     .upload(storagePath, buffer, {
       contentType: 'application/pdf',
       upsert: true,
     })
 
-  if (uploadError) {
-    throw new Error(`Failed to upload contract PDF: ${uploadError.message}`)
-  }
+  if (error) throw new Error(`Failed to upload contract PDF: ${error.message}`)
 
-  // Signed URL valid for 1 year; store storagePath in DB for refresh on expiry
-  const { data, error: signError } = await supabase.storage
-    .from('contracts')
-    .createSignedUrl(storagePath, 31_536_000)
+  return storagePath
+}
 
-  if (signError || !data) {
+/** 為已存在的 storagePath 產出 signed URL，預設效期 3600 秒（1 小時）。 */
+export async function createContractSignedUrl(
+  storagePath: string,
+  expiresIn = 3600,
+): Promise<string> {
+  const supabase = getSupabaseAdmin()
+
+  const { data, error } = await supabase.storage
+    .from(BUCKET)
+    .createSignedUrl(storagePath, expiresIn)
+
+  if (error || !data)
     throw new Error(
-      `Failed to create signed URL: ${signError?.message ?? 'unknown'}`,
+      `Failed to create signed URL: ${error?.message ?? 'unknown'}`,
     )
-  }
 
   return data.signedUrl
+}
+
+/** 清理 Storage 上的孤立 PDF（補償用途）。失敗時 console.error 而非拋出。 */
+export async function deleteContractPdf(storagePath: string): Promise<void> {
+  try {
+    const supabase = getSupabaseAdmin()
+    await supabase.storage.from(BUCKET).remove([storagePath])
+  } catch (e) {
+    console.error('deleteContractPdf failed (non-fatal):', e)
+  }
 }

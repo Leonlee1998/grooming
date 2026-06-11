@@ -149,6 +149,12 @@ export async function createBookingFromLine(input: {
   serviceIds: string[]
   scheduledAt: Date
 }): Promise<{ appointmentId: string; scheduledAt: Date }> {
+  const customer = await prismaAdmin.customer.findUniqueOrThrow({
+    where: { id: input.customerId },
+    select: { storeId: true },
+  })
+  const { storeId } = customer
+
   const services = await prismaAdmin.service.findMany({
     where: { id: { in: input.serviceIds } },
     select: { id: true, name: true, basePrice: true, estimatedMinutes: true },
@@ -161,6 +167,7 @@ export async function createBookingFromLine(input: {
 
   const appt = await prismaAdmin.appointment.create({
     data: {
+      storeId,
       customerId: input.customerId,
       petId: input.petId,
       staffId: input.staffId,
@@ -174,6 +181,7 @@ export async function createBookingFromLine(input: {
   // 建立 DRAFT order，讓 POS 時間表可看到預定服務
   await prismaAdmin.order.create({
     data: {
+      storeId,
       appointmentId: appt.id,
       customerId: input.customerId,
       petId: input.petId,

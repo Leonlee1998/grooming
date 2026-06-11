@@ -115,10 +115,31 @@ function serializeService(s: RawService): ServiceData {
 
 const withRules = { priceRules: { orderBy: { id: 'asc' as const } } }
 
+async function getAdminStoreId(): Promise<string> {
+  const store =
+    (await prismaAdmin.store.findFirst({
+      where: { slug: process.env.STORE_SLUG ?? 'default', isActive: true },
+      select: { id: true },
+    })) ??
+    (await prismaAdmin.store.findFirst({
+      where: { isActive: true },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    }))
+
+  if (!store) {
+    throw new Error('No active store found')
+  }
+
+  return store.id
+}
+
 // ─── Server Actions ───────────────────────────────────────────────────────────
 
 export async function getServices(): Promise<ServiceData[]> {
+  const storeId = await getAdminStoreId()
   const rows = await prismaAdmin.service.findMany({
+    where: { storeId },
     include: withRules,
     orderBy: { sortOrder: 'asc' },
   })
@@ -127,12 +148,14 @@ export async function getServices(): Promise<ServiceData[]> {
 
 export async function createService(raw: ServiceInput): Promise<ServiceData> {
   const data = serviceSchema.parse(raw)
+  const storeId = await getAdminStoreId()
   const top = await prismaAdmin.service.findFirst({
+    where: { storeId },
     orderBy: { sortOrder: 'desc' },
     select: { sortOrder: true },
   })
   const service = await prismaAdmin.service.create({
-    data: { ...data, sortOrder: (top?.sortOrder ?? 0) + 1 },
+    data: { ...data, storeId, sortOrder: (top?.sortOrder ?? 0) + 1 },
     include: withRules,
   })
   return serializeService(service)
@@ -165,9 +188,13 @@ export async function toggleServiceActive(id: string): Promise<ServiceData> {
 }
 
 export async function reorderServices(ids: string[]): Promise<void> {
+  const storeId = await getAdminStoreId()
   await Promise.all(
     ids.map((id, index) =>
-      prismaAdmin.service.update({ where: { id }, data: { sortOrder: index } }),
+      prismaAdmin.service.update({
+        where: { id, storeId },
+        data: { sortOrder: index },
+      }),
     ),
   )
 }

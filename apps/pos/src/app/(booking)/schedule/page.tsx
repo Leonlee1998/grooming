@@ -98,6 +98,7 @@ const SOURCE_LABEL: Record<string, string> = {
   WALK_IN: '現場',
   ONLINE: '線上預約',
   LINE: 'LINE 預約',
+  POS_ONSITE: '現場預約',
 }
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────

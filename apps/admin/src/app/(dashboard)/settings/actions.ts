@@ -44,6 +44,25 @@ const ALLOWED_KEYS = new Set([
   'online.booking.enabled',
 ])
 
+async function getAdminStoreId(): Promise<string> {
+  const store =
+    (await prismaAdmin.store.findFirst({
+      where: { slug: process.env.STORE_SLUG ?? 'default', isActive: true },
+      select: { id: true },
+    })) ??
+    (await prismaAdmin.store.findFirst({
+      where: { isActive: true },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    }))
+
+  if (!store) {
+    throw new Error('No active store found')
+  }
+
+  return store.id
+}
+
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
 export async function getSettings(): Promise<Record<string, string>> {
@@ -127,7 +146,9 @@ const staffSchema = z.object({
 })
 
 export async function getStaff(): Promise<StaffData[]> {
+  const storeId = await getAdminStoreId()
   const rows = await prismaAdmin.staff.findMany({
+    where: { storeId },
     orderBy: [{ isActive: 'desc' }, { name: 'asc' }],
   })
   return rows.map((r) => ({
@@ -145,10 +166,11 @@ export async function upsertStaff(
   raw: StaffInput,
 ): Promise<StaffData> {
   const data = staffSchema.parse(raw)
+  const storeId = await getAdminStoreId()
 
   const row = id
-    ? await prismaAdmin.staff.update({ where: { id }, data })
-    : await prismaAdmin.staff.create({ data })
+    ? await prismaAdmin.staff.update({ where: { id, storeId }, data })
+    : await prismaAdmin.staff.create({ data: { ...data, storeId } })
 
   revalidatePath('/settings')
 
@@ -164,13 +186,14 @@ export async function upsertStaff(
 
 export async function toggleStaffActive(id: string): Promise<void> {
   z.string().min(1).parse(id)
+  const storeId = await getAdminStoreId()
 
   const current = await prismaAdmin.staff.findUniqueOrThrow({
-    where: { id },
+    where: { id, storeId },
     select: { isActive: true },
   })
   await prismaAdmin.staff.update({
-    where: { id },
+    where: { id, storeId },
     data: { isActive: !current.isActive },
   })
 

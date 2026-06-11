@@ -1,5 +1,5 @@
 import { ReactNode } from 'react'
-import Link from 'next/link'
+import { NavMenu } from '@/components/layout/NavLink'
 
 const navItems = [
   { href: '/dashboard', label: '今日總覽' },
@@ -22,16 +22,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         </div>
         <nav className="flex-1 overflow-y-auto px-3 py-4">
           <ul className="space-y-0.5">
-            {navItems.map((item) => (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className="flex items-center rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900"
-                >
-                  {item.label}
-                </Link>
-              </li>
-            ))}
+            <NavMenu items={navItems} />
           </ul>
         </nav>
       </aside>

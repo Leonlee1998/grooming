@@ -30,6 +30,38 @@ export default function Home() {
           </Link>
 
           <Link
+            href="/booking/onsite"
+            className="flex items-center gap-4 rounded-xl border border-stone-200 bg-white px-6 py-5 hover:bg-stone-50 active:bg-stone-100 transition-colors focus:outline-none focus:ring-4 focus:ring-emerald-200"
+          >
+            <div className="w-12 h-12 rounded-lg bg-stone-100 flex items-center justify-center text-stone-600 flex-shrink-0">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.8}
+                className="w-6 h-6"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 14v3m0 0h-1.5M12 17h1.5"
+                />
+              </svg>
+            </div>
+            <div>
+              <p className="font-bold text-xl text-stone-800">現場預約</p>
+              <p className="text-stone-400 text-sm">
+                幫客戶預約未來時段（不簽約）
+              </p>
+            </div>
+          </Link>
+
+          <Link
             href="/schedule"
             className="flex items-center gap-4 rounded-xl border border-stone-200 bg-white px-6 py-5 hover:bg-stone-50 active:bg-stone-100 transition-colors focus:outline-none focus:ring-4 focus:ring-emerald-200"
           >

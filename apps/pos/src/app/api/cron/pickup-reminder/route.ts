@@ -10,7 +10,9 @@ const WINDOW_MINUTES = 5
 
 function verifyBearer(req: NextRequest): boolean {
   const secret = process.env.CRON_SECRET
-  if (!secret) return true
+  if (!secret) {
+    return process.env.NODE_ENV === 'development'
+  }
   return req.headers.get('authorization') === `Bearer ${secret}`
 }
 

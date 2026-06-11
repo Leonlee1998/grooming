@@ -14,9 +14,12 @@
     "@dnd-kit/sortable": "^8.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@repo/db": "workspace:*",
+    "@supabase/ssr": "^0.5.2",
+    "@supabase/supabase-js": "^2.49.4",
     "next": "^14.2.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "recharts": "^2.13.3",
     "zod": "^3.22.4"
   },
   "devDependencies": {

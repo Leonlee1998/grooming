@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { BigButton } from '@/components/ui/BigButton'
 import { useCheckinStore } from '@/stores/checkin'
+import { useShallow } from 'zustand/react/shallow'
 import { cancelDraftOrder } from '@/app/(grooming)/checkin/actions'
 
 interface CancelCheckinButtonProps {
@@ -14,10 +15,12 @@ export function CancelCheckinButton({
   className = '',
 }: CancelCheckinButtonProps) {
   const router = useRouter()
-  const { orderId, reset } = useCheckinStore((s) => ({
-    orderId: s.orderId,
-    reset: s.reset,
-  }))
+  const { orderId, reset } = useCheckinStore(
+    useShallow((s) => ({
+      orderId: s.orderId,
+      reset: s.reset,
+    })),
+  )
   const [loading, setLoading] = useState(false)
 
   async function handleCancel() {

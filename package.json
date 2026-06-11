@@ -9,10 +9,14 @@
   ],
   "scripts": {
     "dev": "pnpm --parallel --filter \"./apps/*\" dev",
+    "dev:customer": "pnpm --filter @customer/app dev",
     "build": "pnpm -r build",
     "lint": "turbo run lint",
     "format": "prettier --write .",
     "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "db:generate": "pnpm --filter @repo/db generate",
     "db:migrate": "pnpm --filter @repo/db migrate",
     "db:deploy": "pnpm --filter @repo/db migrate:deploy",
@@ -37,6 +41,7 @@
   "devDependencies": {
     "@commitlint/cli": "^21.0.2",
     "@commitlint/config-conventional": "^21.0.2",
+    "@playwright/test": "^1.49.0",
     "@types/node": "^20.19.0",
     "@typescript-eslint/eslint-plugin": "^8.34.0",
     "@typescript-eslint/parser": "^8.34.0",

@@ -6,7 +6,14 @@ import { PosLayout } from '@/components/layout/PosLayout'
 import { StepIndicator } from '@/components/ui/StepIndicator'
 import { BigButton } from '@/components/ui/BigButton'
 import { useCheckinStore } from '@/stores/checkin'
-import { searchCustomerByPhone, upsertCustomer } from './actions'
+import { useShallow } from 'zustand/react/shallow'
+import {
+  searchCustomerByPhone,
+  upsertCustomer,
+  checkOnlineBooking,
+  confirmOnlineBookingWalkIn,
+  type OnlineAppointmentInfo,
+} from './actions'
 
 const STEPS = ['客戶', '寵物', '服務', '確認', '簽名']
 
@@ -29,10 +36,27 @@ const INITIAL_FORM = {
 
 export default function CheckinPage() {
   const router = useRouter()
-  const { reset, setCustomer } = useCheckinStore((s) => ({
-    reset: s.reset,
-    setCustomer: s.setCustomer,
-  }))
+  const {
+    reset,
+    setCustomer,
+    setPet,
+    setOrderId,
+    setContract,
+    setPriceQuote,
+    setSchedule,
+    setHasOnlineContract,
+  } = useCheckinStore(
+    useShallow((s) => ({
+      reset: s.reset,
+      setCustomer: s.setCustomer,
+      setPet: s.setPet,
+      setOrderId: s.setOrderId,
+      setContract: s.setContract,
+      setPriceQuote: s.setPriceQuote,
+      setSchedule: s.setSchedule,
+      setHasOnlineContract: s.setHasOnlineContract,
+    })),
+  )
 
   const [phone, setPhone] = useState('')
   const [searching, setSearching] = useState(false)
@@ -46,6 +70,11 @@ export default function CheckinPage() {
   const [formError, setFormError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
+  // 線上預約偵測
+  const [onlineAppts, setOnlineAppts] = useState<OnlineAppointmentInfo[]>([])
+  const [confirmingApptId, setConfirmingApptId] = useState<string | null>(null)
+  const [confirmError, setConfirmError] = useState('')
+
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -58,6 +87,7 @@ export default function CheckinPage() {
 
     if (digits.length !== 10) {
       setFound(undefined)
+      setOnlineAppts([])
       if (debounceRef.current) clearTimeout(debounceRef.current)
       return
     }
@@ -67,7 +97,16 @@ export default function CheckinPage() {
       setSearching(true)
       const result = await searchCustomerByPhone(phone)
       setSearching(false)
-      if (result.ok) setFound(result.data as FoundCustomer | null)
+      if (result.ok) {
+        setFound(result.data as FoundCustomer | null)
+        if (result.data) {
+          checkOnlineBooking(result.data.id).then((r) => {
+            if (r.ok) setOnlineAppts(r.data.appointments)
+          })
+        } else {
+          setOnlineAppts([])
+        }
+      }
     }, 300)
 
     return () => {
@@ -85,6 +124,68 @@ export default function CheckinPage() {
       emergencyPhone: c.emergencyPhone ?? '',
     })
     router.push('/checkin/pet')
+  }
+
+  async function handleConfirmOnlineArrival(appt: OnlineAppointmentInfo) {
+    if (!found) return
+    setConfirmingApptId(appt.id)
+    setConfirmError('')
+
+    setCustomer({
+      customerId: found.id,
+      customerName: found.name,
+      customerPhone: found.phone,
+      customerEmail: found.email ?? '',
+      emergencyContact: found.emergencyContact ?? '',
+      emergencyPhone: found.emergencyPhone ?? '',
+    })
+
+    const result = await confirmOnlineBookingWalkIn(appt.id, found.id)
+    setConfirmingApptId(null)
+
+    if (!result.ok) {
+      setConfirmError(result.error)
+      return
+    }
+
+    setPet({
+      petId: result.data.petId,
+      petName: result.data.petName,
+      petSpecies: appt.petSpecies,
+      petBreed: '',
+      petWeight: '',
+      petGender: '',
+      petBirthDate: '',
+      isAggressive: false,
+      hasDisease: false,
+      diseaseNotes: '',
+      isVaccinated: false,
+      isDewormed: false,
+      preferredVetName: '',
+      preferredVetPhone: '',
+    })
+    setPriceQuote({
+      estimatedDuration: 60,
+      subtotalAmount: result.data.totalAmount,
+      discountAmount: 0,
+      totalAmount: result.data.totalAmount,
+      memberId: null,
+      memberBalance: null,
+    })
+    if (result.data.pickupDeadlineAt) {
+      setSchedule({
+        scheduledAt: new Date().toISOString(),
+        estimatedDuration: 60,
+        pickupDeadlineAt: result.data.pickupDeadlineAt,
+      })
+    }
+    setOrderId(result.data.orderId)
+    setContract({
+      contractId: 'online',
+      earnedPoints: result.data.earnedPoints,
+    })
+    setHasOnlineContract(true)
+    router.push('/checkin/complete')
   }
 
   function openModal() {
@@ -155,37 +256,106 @@ export default function CheckinPage() {
 
         {/* 找到客戶 */}
         {found && (
-          <button
-            onClick={() => proceed(found)}
-            className="w-full text-left rounded-2xl border-2 border-emerald-500 bg-emerald-50 px-6 py-5 hover:bg-emerald-100 active:scale-[0.99] transition-all"
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-full bg-emerald-200 flex items-center justify-center text-emerald-800 text-2xl font-bold flex-shrink-0">
-                {found.name[0]}
+          <div className="flex flex-col gap-4">
+            <button
+              onClick={() => proceed(found)}
+              className="w-full text-left rounded-2xl border-2 border-emerald-500 bg-emerald-50 px-6 py-5 hover:bg-emerald-100 active:scale-[0.99] transition-all"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-full bg-emerald-200 flex items-center justify-center text-emerald-800 text-2xl font-bold flex-shrink-0">
+                  {found.name[0]}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xl font-bold text-stone-900">
+                    {found.name}
+                  </p>
+                  <p className="text-stone-500 mt-0.5">{found.phone}</p>
+                  {found.email && (
+                    <p className="text-stone-400 text-sm truncate">
+                      {found.email}
+                    </p>
+                  )}
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <p className="text-3xl font-bold text-emerald-700">
+                    {found.petCount}
+                  </p>
+                  <p className="text-stone-400 text-sm">隻寵物</p>
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xl font-bold text-stone-900">{found.name}</p>
-                <p className="text-stone-500 mt-0.5">{found.phone}</p>
-                {found.email && (
-                  <p className="text-stone-400 text-sm truncate">
-                    {found.email}
+              <div className="mt-4 pt-4 border-t border-emerald-200 flex items-center justify-between">
+                <span className="text-emerald-700 font-semibold">
+                  {onlineAppts.length > 0
+                    ? '加購服務 → 點此走一般報到流程'
+                    : '點擊進入寵物選擇'}
+                </span>
+                <span className="text-emerald-600 text-xl">→</span>
+              </div>
+            </button>
+
+            {/* 線上預約已簽約 banner */}
+            {onlineAppts.length > 0 && (
+              <div className="rounded-2xl border-2 border-blue-200 bg-blue-50 px-6 py-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <p className="text-blue-800 font-bold text-lg">
+                    已線上預約並簽約
+                  </p>
+                  <span className="text-xs bg-blue-700 text-white rounded-full px-2 py-0.5 font-semibold">
+                    今日
+                  </span>
+                </div>
+
+                {onlineAppts.map((appt) => (
+                  <div
+                    key={appt.id}
+                    className="mb-3 last:mb-0 rounded-xl bg-white border border-blue-200 px-4 py-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-stone-900">
+                          {appt.petSpecies === 'DOG' ? '🐶' : '🐱'}{' '}
+                          {appt.petName}
+                        </p>
+                        <p className="text-sm text-stone-500 mt-0.5">
+                          {new Date(appt.scheduledAt).toLocaleTimeString(
+                            'zh-TW',
+                            {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              timeZone: 'Asia/Taipei',
+                            },
+                          )}
+                          {appt.staffName && ` · ${appt.staffName}`}
+                        </p>
+                        {appt.serviceNames.length > 0 && (
+                          <p className="text-xs text-stone-400 mt-1 truncate">
+                            {appt.serviceNames.join('、')}
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => handleConfirmOnlineArrival(appt)}
+                        disabled={confirmingApptId !== null}
+                        className="shrink-0 rounded-xl bg-blue-700 text-white px-4 py-2.5 text-sm font-semibold hover:bg-blue-800 disabled:opacity-50 transition-colors min-h-[44px]"
+                      >
+                        {confirmingApptId === appt.id ? '確認中…' : '確認到店'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {confirmError && (
+                  <p className="mt-3 text-sm text-red-700 bg-red-50 rounded-xl px-4 py-3">
+                    {confirmError}
                   </p>
                 )}
-              </div>
-              <div className="text-right flex-shrink-0">
-                <p className="text-3xl font-bold text-emerald-700">
-                  {found.petCount}
+
+                <p className="mt-3 text-xs text-blue-600">
+                  「確認到店」直接採用線上合約，無需補簽。若需加購服務，請點上方客戶卡片走一般報到流程。
                 </p>
-                <p className="text-stone-400 text-sm">隻寵物</p>
               </div>
-            </div>
-            <div className="mt-4 pt-4 border-t border-emerald-200 flex items-center justify-between">
-              <span className="text-emerald-700 font-semibold">
-                點擊進入寵物選擇
-              </span>
-              <span className="text-emerald-600 text-xl">→</span>
-            </div>
-          </button>
+            )}
+          </div>
         )}
 
         {/* 找不到客戶 */}

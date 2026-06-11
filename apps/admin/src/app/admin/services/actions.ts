@@ -84,8 +84,29 @@ const serviceSelect = {
   },
 } as const
 
+async function getAdminStoreId(): Promise<string> {
+  const store =
+    (await prismaAdmin.store.findFirst({
+      where: { slug: process.env.STORE_SLUG ?? 'default', isActive: true },
+      select: { id: true },
+    })) ??
+    (await prismaAdmin.store.findFirst({
+      where: { isActive: true },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    }))
+
+  if (!store) {
+    throw new Error('No active store found')
+  }
+
+  return store.id
+}
+
 export async function getServices(): Promise<Service[]> {
+  const storeId = await getAdminStoreId()
   const services = await prismaAdmin.service.findMany({
+    where: { storeId },
     select: serviceSelect,
     orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
   })
@@ -95,9 +116,11 @@ export async function getServices(): Promise<Service[]> {
 
 export async function createService(data: ServiceFormInput): Promise<Service> {
   const parsed = serviceSchema.parse(data)
+  const storeId = await getAdminStoreId()
   const service = await prismaAdmin.service.create({
     data: {
       ...parsed,
+      storeId,
       description: parsed.description || null,
     },
     select: serviceSelect,
@@ -143,10 +166,11 @@ export async function toggleServiceActive(id: string): Promise<Service> {
 }
 
 export async function reorderServices(ids: string[]): Promise<void> {
+  const storeId = await getAdminStoreId()
   await prismaAdmin.$transaction(
     ids.map((id, index) =>
       prismaAdmin.service.update({
-        where: { id },
+        where: { id, storeId },
         data: { sortOrder: index + 1 },
       }),
     ),

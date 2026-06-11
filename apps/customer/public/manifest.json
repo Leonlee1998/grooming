@@ -1,0 +1,23 @@
+{
+  "name": "寵物美容預約",
+  "short_name": "寵物預約",
+  "description": "線上預約寵物美容、查詢預約紀錄、管理寵物資料",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#78573A",
+  "background_color": "#FAF7F2",
+  "lang": "zh-TW",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

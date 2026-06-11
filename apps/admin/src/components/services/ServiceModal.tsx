@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, FormEvent } from 'react'
+import { useState, useEffect, useRef, FormEvent } from 'react'
 import type {
   ServiceData,
   ServiceInput,
@@ -40,13 +40,18 @@ export function ServiceModal({ service, onClose, onSave }: ServiceModalProps) {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const onCloseRef = useRef(onClose)
+  useEffect(() => {
+    onCloseRef.current = onClose
+  })
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') onCloseRef.current()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()

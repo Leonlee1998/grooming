@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { PosLayout } from '@/components/layout/PosLayout'
 import { BigButton } from '@/components/ui/BigButton'
 import { useCheckinStore } from '@/stores/checkin'
-import { sendContractToLine } from '@/app/actions/contract'
+import { useShallow } from 'zustand/react/shallow'
+import { generateAndSendContract } from '@/app/actions/contract'
 
 function fmtDatetime(iso: string) {
   if (!iso) return '—'
@@ -27,7 +28,7 @@ function OrderIdBadge({ orderId }: { orderId: string }) {
   )
 }
 
-type LineState = 'idle' | 'sending' | 'sent' | 'no-line' | 'error'
+type LineState = 'sending' | 'sent' | 'no-line' | 'error'
 
 export default function CompletePage() {
   const router = useRouter()
@@ -36,37 +37,65 @@ export default function CompletePage() {
     customerName,
     petName,
     totalAmount,
-    pdfUrl,
     orderId,
+    earnedPoints,
     pickupDeadlineAt,
+    paymentMethod,
+    hasOnlineContract,
     reset,
-  } = useCheckinStore((s) => ({
-    customerId: s.customerId,
-    customerName: s.customerName,
-    petName: s.petName,
-    totalAmount: s.totalAmount,
-    pdfUrl: s.pdfUrl,
-    orderId: s.orderId,
-    pickupDeadlineAt: s.pickupDeadlineAt,
-    reset: s.reset,
-  }))
+  } = useCheckinStore(
+    useShallow((s) => ({
+      customerId: s.customerId,
+      customerName: s.customerName,
+      petName: s.petName,
+      totalAmount: s.totalAmount,
+      orderId: s.orderId,
+      earnedPoints: s.earnedPoints,
+      pickupDeadlineAt: s.pickupDeadlineAt,
+      paymentMethod: s.paymentMethod,
+      hasOnlineContract: s.hasOnlineContract,
+      reset: s.reset,
+    })),
+  )
 
-  const [lineState, setLineState] = useState<LineState>('idle')
+  const [lineState, setLineState] = useState<LineState>('sending')
   const [lineError, setLineError] = useState('')
+  const triggered = useRef(false)
 
   useEffect(() => {
-    if (!orderId) router.replace('/checkin')
-  }, [orderId, router])
+    if (!orderId) {
+      router.replace('/checkin')
+      return
+    }
+    if (triggered.current) return
+    triggered.current = true
 
-  async function handleSendLine() {
-    if (!customerId || !orderId || !pdfUrl) return
+    // 線上合約情況下不重新產出 PDF
+    if (hasOnlineContract) {
+      setLineState('no-line')
+      return
+    }
+
+    if (!customerId) return
+
+    generateAndSendContract({ orderId, customerId }).then((result) => {
+      if (!result.ok) {
+        setLineError(result.error)
+        setLineState('error')
+        return
+      }
+      setLineState(result.data.sent ? 'sent' : 'no-line')
+    })
+  }, [orderId, customerId, hasOnlineContract, router])
+
+  async function handleRetry() {
+    if (!customerId || !orderId) return
     setLineState('sending')
     setLineError('')
-
-    const result = await sendContractToLine({ customerId, orderId, pdfUrl })
+    const result = await generateAndSendContract({ orderId, customerId })
     if (!result.ok) {
-      setLineState('error')
       setLineError(result.error)
+      setLineState('error')
       return
     }
     setLineState(result.data.sent ? 'sent' : 'no-line')
@@ -75,6 +104,13 @@ export default function CompletePage() {
   function handleNewCheckin() {
     reset()
     router.push('/checkin')
+  }
+
+  const PAYMENT_LABEL: Record<string, string> = {
+    CASH: '現金',
+    CARD: '刷卡',
+    TRANSFER: '轉帳',
+    MEMBER_BALANCE: '儲值金',
   }
 
   if (!orderId) return null
@@ -101,9 +137,13 @@ export default function CompletePage() {
 
         {/* 標題 */}
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-stone-900">報到完成！</h1>
+          <h1 className="text-3xl font-bold text-stone-900">
+            {hasOnlineContract ? '到店確認完成！' : '報到完成！'}
+          </h1>
           <p className="mt-2 text-stone-500 text-lg">
-            {customerName} 與 {petName} 已完成簽約
+            {hasOnlineContract
+              ? `${customerName} 的 ${petName} 已確認到店`
+              : `${customerName} 與 ${petName} 已完成簽約`}
           </p>
         </div>
 
@@ -119,6 +159,14 @@ export default function CompletePage() {
               ${totalAmount}
             </span>
           </div>
+          {paymentMethod && (
+            <div className="flex justify-between items-center px-5 py-4">
+              <span className="text-stone-500 text-sm">付款方式</span>
+              <span className="font-medium text-stone-900 text-sm">
+                {PAYMENT_LABEL[paymentMethod] ?? paymentMethod}
+              </span>
+            </div>
+          )}
           <div className="flex justify-between items-center px-5 py-4">
             <span className="text-stone-500 text-sm">訂單狀態</span>
             <span className="text-emerald-700 font-medium text-sm">已確認</span>
@@ -133,52 +181,33 @@ export default function CompletePage() {
           )}
         </div>
 
-        {/* PDF 按鈕 */}
-        {pdfUrl && (
-          <a
-            href={pdfUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-full rounded-xl border-2 border-emerald-600 text-emerald-700 font-semibold text-center py-4 text-lg hover:bg-emerald-50 active:bg-emerald-100 transition-colors flex items-center justify-center gap-2"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              className="w-5 h-5"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
-              />
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M9 13h6m-3-3v6"
-              />
-            </svg>
-            查看 / 下載契約 PDF
-          </a>
+        {/* 累積點數 */}
+        {earnedPoints !== null && earnedPoints > 0 && (
+          <div className="w-full rounded-xl bg-amber-50 border border-amber-200 px-5 py-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-amber-200 flex items-center justify-center shrink-0">
+              <svg
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                className="w-5 h-5 text-amber-700"
+              >
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14 2 9.27l6.91-1.01L12 2z" />
+              </svg>
+            </div>
+            <div>
+              <p className="font-semibold text-amber-900">
+                本次累積 {earnedPoints} 點
+              </p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                已自動存入會員帳戶
+              </p>
+            </div>
+          </div>
         )}
 
-        {/* LINE 通知按鈕 */}
+        {/* PDF 產出 & LINE 通知狀態 */}
         <div className="w-full">
-          {lineState === 'idle' && (
-            <button
-              onClick={handleSendLine}
-              className="w-full rounded-xl border-2 border-[#06c755] text-[#06c755] font-semibold text-center py-4 text-lg hover:bg-green-50 active:bg-green-100 transition-colors flex items-center justify-center gap-2"
-            >
-              <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63.346 0 .628.285.628.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314" />
-              </svg>
-              發送 LINE 通知給客戶
-            </button>
-          )}
-
           {lineState === 'sending' && (
-            <div className="w-full rounded-xl border-2 border-stone-200 text-stone-400 font-semibold text-center py-4 text-lg flex items-center justify-center gap-2">
+            <div className="w-full rounded-xl border-2 border-stone-200 text-stone-400 font-semibold text-center py-4 text-base flex items-center justify-center gap-2">
               <svg
                 className="w-5 h-5 animate-spin"
                 viewBox="0 0 24 24"
@@ -198,7 +227,7 @@ export default function CompletePage() {
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
                 />
               </svg>
-              傳送中…
+              產出 PDF 並傳送 LINE 通知中…
             </div>
           )}
 
@@ -217,13 +246,15 @@ export default function CompletePage() {
                   d="M5 13l4 4L19 7"
                 />
               </svg>
-              LINE 通知已成功傳送！
+              契約 PDF 已透過 LINE 傳送給客戶
             </div>
           )}
 
           {lineState === 'no-line' && (
             <div className="w-full rounded-xl border-2 border-stone-200 bg-stone-50 text-stone-500 font-medium text-center py-4 text-sm">
-              此客戶尚未綁定 LINE，無法傳送通知
+              {hasOnlineContract
+                ? '已採用線上簽約合約，無需重新產出 PDF。'
+                : 'PDF 已產出並存檔。此客戶尚未綁定 LINE，無法傳送通知。'}
             </div>
           )}
 
@@ -233,10 +264,10 @@ export default function CompletePage() {
                 {lineError}
               </div>
               <button
-                onClick={handleSendLine}
-                className="text-sm text-stone-400 underline text-center"
+                onClick={handleRetry}
+                className="text-sm text-stone-500 underline text-center min-h-[44px]"
               >
-                重新嘗試
+                重新嘗試 PDF 產出 / LINE 傳送
               </button>
             </div>
           )}

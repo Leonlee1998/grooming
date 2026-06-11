@@ -33,8 +33,16 @@ export async function handleMessage(
       return
     }
 
+    const storeId = process.env.STORE_ID
+    if (!storeId) {
+      await client.replyMessage({
+        replyToken,
+        messages: [{ type: 'text', text: '系統設定錯誤，請聯絡管理員。' }],
+      })
+      return
+    }
     const customer = await prismaAdmin.customer.findUnique({
-      where: { phone },
+      where: { storeId_phone: { storeId, phone } },
       select: { id: true, name: true, lineUserId: true },
     })
 
