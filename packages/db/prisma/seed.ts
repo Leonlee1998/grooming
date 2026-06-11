@@ -1,81 +1,130 @@
-import { Pool } from "pg";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { loadEnvFile } from "node:process";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
 import { PrismaClient } from "../generated/client/index.js";
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const rootEnvPath = resolve("../../.env");
+
+if (existsSync(rootEnvPath)) {
+  loadEnvFile(rootEnvPath);
+}
+
+const connectionString = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
+
+if (!connectionString) {
+  throw new Error("DATABASE_URL or DIRECT_URL is required to run db:seed.");
+}
+
+const pool = new Pool({ connectionString });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  console.log("🌱 開始植入 seed 資料...");
+  console.log("Seeding database...");
 
-  // ── 契約模板 ──────────────────────────────────────────────────────────────
-  const template = await prisma.contractTemplate.upsert({
-    where: { id: "template-default-v1" },
-    update: {},
-    create: {
-      id: "template-default-v1",
-      name: "犬貓美容服務定型化契約（農業部 114/05/12）",
-      version: "1.0",
-      isDefault: true,
-      htmlContent: `<!DOCTYPE html>
-<html lang="zh-TW">
-<head><meta charset="UTF-8"><title>犬貓美容服務契約</title></head>
-<body>
-  <h1>犬、貓美容服務契約書</h1>
-  <p>立契約書人（以下稱甲方）：{{customerName}}，電話：{{customerPhone}}</p>
-  <p>美容業者（以下稱乙方）：{{shopName}}</p>
-  <h2>一、服務項目及費用（§3）</h2>
-  <table>
-    <tr><th>項目</th><th>單價</th><th>數量</th><th>小計</th></tr>
-    {{#each items}}
-    <tr><td>{{name}}</td><td>{{unitPrice}}</td><td>{{quantity}}</td><td>{{total}}</td></tr>
-    {{/each}}
-  </table>
-  <p>合計：NT$ {{total}} 元</p>
-  <h2>二、寵物資料及健康狀況（§4）</h2>
-  <p>寵物名稱：{{petName}}，品種：{{petBreed}}，體重：{{petWeight}} kg</p>
-  <p>攻擊性：{{isAggressive}}，健康狀況：{{healthCondition}}，疾病史：{{diseases}}</p>
-  <h2>三、逾時費用規定</h2>
-  <p>服務超過約定時間30分鐘以內不加收費用；超過30分鐘起按比例計收。</p>
-  <h2>四、解約及退費</h2>
-  <p>3日內申請退費，手續費上限為服務費5%且不超過新台幣1,000元。</p>
-  <h2>五、緊急就醫</h2>
-  <p>客戶指定獸醫院：{{emergencyVetClinic}}</p>
-  <h2>六、簽署</h2>
-  <p>甲方簽名：</p>
-  <img src="{{signatureDataUrl}}" alt="客戶簽名" style="max-width:300px;border:1px solid #ccc;" />
-  <p>簽署日期：{{signedAt}}</p>
-</body>
-</html>`,
-      requiredFields: [
-        { key: "customerName", label: "客戶姓名", type: "text", locked: true },
-        { key: "customerPhone", label: "客戶電話", type: "text", locked: true },
-        { key: "petName", label: "寵物名稱", type: "text", locked: true },
-        { key: "petBreed", label: "品種", type: "text", locked: true },
-        { key: "petWeight", label: "體重(kg)", type: "number", locked: true },
-        { key: "isAggressive", label: "攻擊性", type: "boolean", locked: true },
-        { key: "healthCondition", label: "健康狀況", type: "text", locked: true },
-        { key: "diseases", label: "疾病史", type: "text", locked: true },
-        { key: "emergencyVetClinic", label: "緊急獸醫院", type: "text", locked: true },
-        { key: "items", label: "服務項目", type: "array", locked: true },
-        { key: "total", label: "總金額", type: "number", locked: true },
-        { key: "signatureDataUrl", label: "電子簽名", type: "signature", locked: true },
-        { key: "signedAt", label: "簽署日期", type: "datetime", locked: true },
-      ],
-      customFields: [],
-    },
-  });
-  console.log(`✅ 契約模板：${template.name}`);
+  const [wang, lin, chen] = await Promise.all([
+    prisma.staff.upsert({
+      where: { id: "staff-wang-xiaomei" },
+      update: {
+        name: "王小美",
+        role: "GROOMER",
+        surcharge: 0,
+        isActive: true,
+      },
+      create: {
+        id: "staff-wang-xiaomei",
+        name: "王小美",
+        role: "GROOMER",
+      },
+    }),
+    prisma.staff.upsert({
+      where: { id: "staff-lin-dashuai" },
+      update: {
+        name: "林大帥",
+        role: "GROOMER",
+        surcharge: 100,
+        isActive: true,
+      },
+      create: {
+        id: "staff-lin-dashuai",
+        name: "林大帥",
+        role: "GROOMER",
+        surcharge: 100,
+      },
+    }),
+    prisma.staff.upsert({
+      where: { id: "staff-chen-manager" },
+      update: {
+        name: "陳店長",
+        role: "MANAGER",
+        surcharge: 0,
+        isActive: true,
+      },
+      create: {
+        id: "staff-chen-manager",
+        name: "陳店長",
+        role: "MANAGER",
+      },
+    }),
+  ]);
+  console.log(`Staff: ${[wang.name, lin.name, chen.name].join(", ")}`);
 
-  // ── 服務項目 ──────────────────────────────────────────────────────────────
+  const [basicPlan, vipPlan] = await Promise.all([
+    prisma.memberPlan.upsert({
+      where: { id: "member-plan-basic" },
+      update: {
+        name: "一般會員",
+        monthlyFee: 0,
+        pointRate: 1,
+        discountRate: 0,
+        isActive: true,
+      },
+      create: {
+        id: "member-plan-basic",
+        name: "一般會員",
+        description: "免費，1倍點數",
+        monthlyFee: 0,
+        pointRate: 1,
+        discountRate: 0,
+      },
+    }),
+    prisma.memberPlan.upsert({
+      where: { id: "member-plan-vip" },
+      update: {
+        name: "VIP 會員",
+        monthlyFee: 299,
+        pointRate: 1.5,
+        discountRate: 0.05,
+        isActive: true,
+      },
+      create: {
+        id: "member-plan-vip",
+        name: "VIP 會員",
+        description: "月費 299，1.5倍點數，95折",
+        monthlyFee: 299,
+        pointRate: 1.5,
+        discountRate: 0.05,
+      },
+    }),
+  ]);
+  console.log(`MemberPlan: ${basicPlan.name}, ${vipPlan.name}`);
+
   const services = await Promise.all([
     prisma.service.upsert({
-      where: { id: "svc-bath-small" },
-      update: {},
+      where: { id: "service-bath-spa" },
+      update: {
+        name: "洗澡 SPA",
+        category: "BATH",
+        basePrice: 600,
+        estimatedMinutes: 90,
+        sortOrder: 1,
+        isActive: true,
+      },
       create: {
-        id: "svc-bath-small",
-        name: "洗澡（小型犬/貓）",
+        id: "service-bath-spa",
+        name: "洗澡 SPA",
         category: "BATH",
         basePrice: 600,
         estimatedMinutes: 90,
@@ -83,191 +132,177 @@ async function main() {
       },
     }),
     prisma.service.upsert({
-      where: { id: "svc-bath-medium" },
-      update: {},
+      where: { id: "service-haircut" },
+      update: {
+        name: "剃毛",
+        category: "HAIRCUT",
+        basePrice: 800,
+        estimatedMinutes: 120,
+        sortOrder: 2,
+        isActive: true,
+      },
       create: {
-        id: "svc-bath-medium",
-        name: "洗澡（中型犬）",
-        category: "BATH",
-        basePrice: 900,
+        id: "service-haircut",
+        name: "剃毛",
+        category: "HAIRCUT",
+        basePrice: 800,
         estimatedMinutes: 120,
         sortOrder: 2,
       },
     }),
     prisma.service.upsert({
-      where: { id: "svc-bath-large" },
-      update: {},
+      where: { id: "service-nail" },
+      update: {
+        name: "剪指甲",
+        category: "NAIL",
+        basePrice: 150,
+        estimatedMinutes: 15,
+        sortOrder: 3,
+        isActive: true,
+      },
       create: {
-        id: "svc-bath-large",
-        name: "洗澡（大型犬）",
-        category: "BATH",
-        basePrice: 1200,
-        estimatedMinutes: 150,
+        id: "service-nail",
+        name: "剪指甲",
+        category: "NAIL",
+        basePrice: 150,
+        estimatedMinutes: 15,
         sortOrder: 3,
       },
     }),
     prisma.service.upsert({
-      where: { id: "svc-full-small" },
-      update: {},
-      create: {
-        id: "svc-full-small",
-        name: "全套美容（小型犬/貓）",
-        category: "FULL_GROOMING",
+      where: { id: "service-bath-haircut" },
+      update: {
+        name: "洗澡+剃毛",
+        category: "BATH",
         basePrice: 1200,
-        estimatedMinutes: 150,
+        estimatedMinutes: 180,
+        sortOrder: 4,
+        isActive: true,
+      },
+      create: {
+        id: "service-bath-haircut",
+        name: "洗澡+剃毛",
+        category: "BATH",
+        basePrice: 1200,
+        estimatedMinutes: 180,
         sortOrder: 4,
       },
     }),
     prisma.service.upsert({
-      where: { id: "svc-full-medium" },
-      update: {},
+      where: { id: "service-face-spa" },
+      update: {
+        name: "臉部美容",
+        category: "SPA",
+        basePrice: 300,
+        estimatedMinutes: 30,
+        sortOrder: 5,
+        isActive: true,
+      },
       create: {
-        id: "svc-full-medium",
-        name: "全套美容（中型犬）",
-        category: "FULL_GROOMING",
-        basePrice: 1600,
-        estimatedMinutes: 180,
+        id: "service-face-spa",
+        name: "臉部美容",
+        category: "SPA",
+        basePrice: 300,
+        estimatedMinutes: 30,
         sortOrder: 5,
       },
     }),
     prisma.service.upsert({
-      where: { id: "svc-full-large" },
-      update: {},
+      where: { id: "service-essential-oil-spa" },
+      update: {
+        name: "精油護膚",
+        category: "SPA",
+        basePrice: 500,
+        estimatedMinutes: 60,
+        sortOrder: 6,
+        isActive: true,
+      },
       create: {
-        id: "svc-full-large",
-        name: "全套美容（大型犬）",
-        category: "FULL_GROOMING",
-        basePrice: 2200,
-        estimatedMinutes: 210,
+        id: "service-essential-oil-spa",
+        name: "精油護膚",
+        category: "SPA",
+        basePrice: 500,
+        estimatedMinutes: 60,
         sortOrder: 6,
       },
     }),
-    prisma.service.upsert({
-      where: { id: "svc-nail" },
-      update: {},
+  ]);
+  console.log(`Service: ${services.map((service) => service.name).join(", ")}`);
+
+  const priceRules = await Promise.all([
+    prisma.priceRule.upsert({
+      where: { id: "price-rule-bath-spa-over-10kg" },
+      update: {
+        serviceId: "service-bath-spa",
+        name: "洗澡 SPA：體重 10kg 以上",
+        weightMin: 10,
+        weightMax: null,
+        priceAdjustment: 200,
+        adjustmentType: "FIXED",
+        isActive: true,
+      },
       create: {
-        id: "svc-nail",
-        name: "剪指甲",
-        category: "NAIL_TRIM",
-        basePrice: 150,
-        estimatedMinutes: 15,
-        sortOrder: 10,
+        id: "price-rule-bath-spa-over-10kg",
+        serviceId: "service-bath-spa",
+        name: "洗澡 SPA：體重 10kg 以上",
+        weightMin: 10,
+        priceAdjustment: 200,
+        adjustmentType: "FIXED",
       },
     }),
-    prisma.service.upsert({
-      where: { id: "svc-ear" },
-      update: {},
-      create: {
-        id: "svc-ear",
-        name: "清耳朵",
-        category: "EAR_CLEANING",
-        basePrice: 150,
-        estimatedMinutes: 15,
-        sortOrder: 11,
+    prisma.priceRule.upsert({
+      where: { id: "price-rule-haircut-over-15kg" },
+      update: {
+        serviceId: "service-haircut",
+        name: "剃毛：體重 15kg 以上",
+        weightMin: 15,
+        weightMax: null,
+        priceAdjustment: 300,
+        adjustmentType: "FIXED",
+        isActive: true,
       },
-    }),
-    prisma.service.upsert({
-      where: { id: "svc-teeth" },
-      update: {},
       create: {
-        id: "svc-teeth",
-        name: "刷牙",
-        category: "TEETH_BRUSHING",
-        basePrice: 200,
-        estimatedMinutes: 10,
-        sortOrder: 12,
-      },
-    }),
-    prisma.service.upsert({
-      where: { id: "svc-anal" },
-      update: {},
-      create: {
-        id: "svc-anal",
-        name: "擠肛門腺",
-        category: "ANAL_GLAND",
-        basePrice: 100,
-        estimatedMinutes: 5,
-        sortOrder: 13,
-      },
-    }),
-    prisma.service.upsert({
-      where: { id: "svc-knot" },
-      update: {},
-      create: {
-        id: "svc-knot",
-        name: "打結處理（加價）",
-        category: "ADD_ON",
-        basePrice: 200,
-        estimatedMinutes: 30,
-        sortOrder: 20,
-        description: "嚴重打結需額外處理費用",
+        id: "price-rule-haircut-over-15kg",
+        serviceId: "service-haircut",
+        name: "剃毛：體重 15kg 以上",
+        weightMin: 15,
+        priceAdjustment: 300,
+        adjustmentType: "FIXED",
       },
     }),
   ]);
-  console.log(`✅ 服務項目：${services.length} 項`);
+  console.log(`PriceRule: ${priceRules.map((rule) => rule.name).join(", ")}`);
 
-  // ── 員工 ──────────────────────────────────────────────────────────────────
-  const staff = await prisma.staff.upsert({
-    where: { id: "staff-001" },
-    update: {},
+  const templateHtml = readFileSync(
+    resolve("../contract/templates/single-service.html"),
+    "utf-8",
+  );
+  const contractTemplate = await prisma.contractTemplate.upsert({
+    where: { id: "contract-template-standard-single-service" },
+    update: {
+      name: "標準美容服務契約",
+      type: "SINGLE_SERVICE",
+      htmlContent: templateHtml,
+      customFields: null,
+      isActive: true,
+      version: 1,
+    },
     create: {
-      id: "staff-001",
-      name: "陳美容",
-      phone: "0912-345-678",
-      role: "GROOMER",
+      id: "contract-template-standard-single-service",
+      name: "標準美容服務契約",
+      type: "SINGLE_SERVICE",
+      htmlContent: templateHtml,
+      version: 1,
     },
   });
-  console.log(`✅ 員工：${staff.name}`);
+  console.log(`ContractTemplate: ${contractTemplate.name}`);
 
-  // ── 會員方案 ──────────────────────────────────────────────────────────────
-  const memberPlan = await prisma.memberPlan.upsert({
-    where: { id: "plan-gold" },
-    update: {},
-    create: {
-      id: "plan-gold",
-      name: "黃金會員",
-      description: "每月消費享85折，點數2倍累積",
-      price: 1200,
-      pointsMultiplier: 2.0,
-      reviewDaysMin: 1,
-      benefits: {
-        discount: 15,
-        birthdayBonus: 500,
-        freeNailTrimPerYear: 4,
-      },
-    },
-  });
-  console.log(`✅ 會員方案：${memberPlan.name}`);
-
-  // ── 範例客戶 + 寵物 ───────────────────────────────────────────────────────
-  const customer = await prisma.customer.upsert({
-    where: { phone: "0900-000-001" },
-    update: {},
-    create: {
-      name: "王小明",
-      phone: "0900-000-001",
-      emergencyVetClinic: "台北市大安動物醫院",
-      pets: {
-        create: {
-          name: "球球",
-          species: "DOG",
-          breed: "貴賓犬",
-          weight: 3.5,
-          isAggressive: false,
-          healthCondition: "健康，無特殊疾病",
-          diseases: "無",
-        },
-      },
-    },
-  });
-  console.log(`✅ 範例客戶：${customer.name}`);
-
-  console.log("\n🎉 Seed 完成！");
+  console.log("Seed complete.");
 }
 
 main()
-  .catch((e) => {
-    console.error(e);
+  .catch((error) => {
+    console.error(error);
     process.exit(1);
   })
   .finally(async () => {

@@ -9,6 +9,8 @@ const withPWA = require('next-pwa')({
 })
 
 /** @type {import('next').NextConfig} */
-const nextConfig = {}
+const nextConfig = {
+  transpilePackages: ['@repo/contract', '@repo/db', '@repo/line-bot'],
+}
 
 export default withPWA(nextConfig)

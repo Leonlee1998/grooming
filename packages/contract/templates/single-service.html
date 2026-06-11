@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>犬、貓美容服務定型化契約</title>
+    <style>
+      @page {
+        size: A4;
+        margin: 18mm 16mm;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        color: #1f2933;
+        background: #ffffff;
+        font-family:
+          "Noto Sans TC", "Microsoft JhengHei", "PingFang TC", sans-serif;
+        font-size: 12pt;
+        line-height: 1.65;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        margin-bottom: 10mm;
+        text-align: center;
+        font-size: 20pt;
+        font-weight: 700;
+        letter-spacing: 0;
+      }
+
+      h2 {
+        margin: 7mm 0 3mm;
+        padding-bottom: 1.5mm;
+        border-bottom: 1px solid #9aa5b1;
+        font-size: 13.5pt;
+        font-weight: 700;
+      }
+
+      h3 {
+        margin: 4mm 0 2mm;
+        font-size: 12pt;
+        font-weight: 700;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 2mm;
+      }
+
+      th,
+      td {
+        border: 1px solid #cbd2d9;
+        padding: 2.5mm 3mm;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        width: 27%;
+        background: #f5f7fa;
+        font-weight: 700;
+      }
+
+      .document {
+        width: 100%;
+      }
+
+      .intro {
+        margin-bottom: 5mm;
+      }
+
+      .legal-note {
+        margin-top: 2mm;
+        color: #52606d;
+        font-size: 9.5pt;
+        line-height: 1.55;
+      }
+
+      .service-table th {
+        width: auto;
+        text-align: center;
+      }
+
+      .service-table td {
+        text-align: center;
+      }
+
+      .amount-table th {
+        width: 70%;
+        text-align: right;
+      }
+
+      .amount-table td {
+        width: 30%;
+        text-align: right;
+      }
+
+      .clause {
+        margin-top: 2mm;
+        padding: 3mm;
+        border: 1px solid #d9e2ec;
+        background: #fbfcfd;
+      }
+
+      .signature-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8mm;
+        margin-top: 4mm;
+      }
+
+      .signature-box {
+        min-height: 36mm;
+        padding: 4mm;
+        border: 1px solid #9aa5b1;
+      }
+
+      .signature-image {
+        display: block;
+        max-width: 100%;
+        max-height: 24mm;
+        margin-top: 3mm;
+      }
+
+      .stamp-area {
+        height: 24mm;
+        margin-top: 3mm;
+        border: 1px dashed #9aa5b1;
+      }
+
+      .page-break-avoid {
+        break-inside: avoid;
+      }
+
+      @media print {
+        body {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="document">
+      <h1>犬、貓美容服務定型化契約</h1>
+
+      <section class="intro page-break-avoid">
+        <p>
+          本契約由犬、貓美容服務企業經營者與消費者就單次美容服務訂立，雙方確認簽約前已完整揭露服務項目、費用、服務人員、預估完成時間及其他必要事項。
+        </p>
+        <p class="legal-note">
+          依據農業部 114 年 5 月 12 日農護字第 1140072281 號公告「犬、貓美容服務定型化契約應記載及不得記載事項」製作。
+        </p>
+      </section>
+
+      <section class="page-break-avoid">
+        <h2>一、店家資訊與簽約日期</h2>
+        <table>
+          <tbody>
+            <tr>
+              <th>店家名稱</th>
+              <td>{{storeName}}</td>
+            </tr>
+            <tr>
+              <th>店家地址</th>
+              <td>{{storeAddress}}</td>
+            </tr>
+            <tr>
+              <th>店家電話</th>
+              <td>{{storePhone}}</td>
+            </tr>
+            <tr>
+              <th>簽約日期</th>
+              <td>{{signedAt}}</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="page-break-avoid">
+        <h2>二、消費者資訊</h2>
+        <table>
+          <tbody>
+            <tr>
+              <th>姓名</th>
+              <td>{{customerName}}</td>
+            </tr>
+            <tr>
+              <th>電話</th>
+              <td>{{customerPhone}}</td>
+            </tr>
+            <tr>
+              <th>Email</th>
+              <td>{{customerEmail}}</td>
+            </tr>
+            <tr>
+              <th>緊急聯絡人</th>
+              <td>{{emergencyContact}}</td>
+            </tr>
+            <tr>
+              <th>緊急聯絡電話</th>
+              <td>{{emergencyPhone}}</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="page-break-avoid">
+        <h2>三、寵物資訊</h2>
+        <table>
+          <tbody>
+            <tr>
+              <th>寵物姓名</th>
+              <td>{{petName}}</td>
+            </tr>
+            <tr>
+              <th>種類</th>
+              <td>{{petSpecies}}</td>
+            </tr>
+            <tr>
+              <th>品種</th>
+              <td>{{petBreed}}</td>
+            </tr>
+            <tr>
+              <th>體重</th>
+              <td>{{petWeight}}</td>
+            </tr>
+            <tr>
+              <th>性別</th>
+              <td>{{petGender}}</td>
+            </tr>
+            <tr>
+              <th>出生日期</th>
+              <td>{{petBirthDate}}</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="page-break-avoid">
+        <h2>四、寵物健康聲明</h2>
+        <p class="legal-note">
+          法規 §4：消費者應於美容服務前提供寵物健康、行為與緊急就醫相關資訊；下列欄位為簽約前必要詢問事項。
+        </p>
+        <table>
+          <tbody>
+            <tr>
+              <th>有無攻擊性</th>
+              <td>{{isAggressive}}</td>
+            </tr>
+            <tr>
+              <th>有無疾病</th>
+              <td>{{hasDisease}}</td>
+            </tr>
+            <tr>
+              <th>疾病或特殊狀況說明</th>
+              <td>{{diseaseNotes}}</td>
+            </tr>
+            <tr>
+              <th>是否接種疫苗</th>
+              <td>{{isVaccinated}}</td>
+            </tr>
+            <tr>
+              <th>是否驅蟲</th>
+              <td>{{isDewormed}}</td>
+            </tr>
+            <tr>
+              <th>指定獸醫院</th>
+              <td>{{preferredVetName}}</td>
+            </tr>
+            <tr>
+              <th>指定獸醫院電話</th>
+              <td>{{preferredVetPhone}}</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>五、服務內容明細與費用揭露</h2>
+        <p class="legal-note">
+          法規 §3：簽約前應完整揭露服務項目、費用、服務人員與次數；未列明之費用不得向消費者收取。
+        </p>
+        <h3>服務項目</h3>
+        <table class="service-table">
+          <thead>
+            <tr>
+              <th>服務項目</th>
+              <th>單價</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{#services}}
+            <tr>
+              <td>{{serviceName}}</td>
+              <td>{{unitPrice}}元</td>
+            </tr>
+            {{/services}}
+          </tbody>
+        </table>
+
+        <table>
+          <tbody>
+            <tr>
+              <th>指定美容師</th>
+              <td>{{staffName}}（{{staffSurcharge}}元）</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <table class="amount-table">
+          <tbody>
+            <tr>
+              <th>小計</th>
+              <td>{{subtotalAmount}}元</td>
+            </tr>
+            <tr>
+              <th>折扣</th>
+              <td>{{discountAmount}}元</td>
+            </tr>
+            <tr>
+              <th>總計</th>
+              <td>{{totalAmount}}元</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="page-break-avoid">
+        <h2>六、服務時間與接回約定</h2>
+        <table>
+          <tbody>
+            <tr>
+              <th>預約或服務開始時間</th>
+              <td>{{scheduledAt}}</td>
+            </tr>
+            <tr>
+              <th>預估完成時間</th>
+              <td>{{estimatedDuration}}分鐘</td>
+            </tr>
+            <tr>
+              <th>約定接回時間</th>
+              <td>{{pickupDeadlineAt}}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="clause">
+          <h3>逾時費規定</h3>
+          <p>逾約定時間 30 分鐘以上，每小時收取逾時費 _____ 元。</p>
+          <p class="legal-note">
+            業者應於簽約前明確揭露逾時費計算方式與金額；未填載者不得收取。
+          </p>
+        </div>
+      </section>
+
+      <section class="page-break-avoid">
+        <h2>七、異常處理聲明</h2>
+        <div class="clause">
+          <p>
+            若寵物出現異常，業者將立即通知消費者；如有緊急醫療必要，業者得依消費者指定獸醫院或就近適當獸醫醫療機構處理，並保留相關聯絡與處置紀錄。
+          </p>
+        </div>
+      </section>
+
+      <section class="page-break-avoid">
+        <h2>八、解約退費說明</h2>
+        <div class="clause">
+          <p>
+            消費者得隨時解除契約，業者須於 3 日內退費；如業者已提供部分服務，得按已提供服務比例或契約約定計算應退金額，但不得逾越法令規定或不合理限制消費者權益。
+          </p>
+        </div>
+      </section>
+
+      <section class="page-break-avoid">
+        <h2>九、自訂欄位</h2>
+        <table>
+          <tbody>
+            {{#customFields}}
+            <tr>
+              <th>{{label}}</th>
+              <td>{{value}}</td>
+            </tr>
+            {{/customFields}}
+          </tbody>
+        </table>
+      </section>
+
+      <section class="page-break-avoid">
+        <h2>十、簽名與蓋章</h2>
+        <div class="signature-grid">
+          <div class="signature-box">
+            <h3>消費者簽名</h3>
+            <img
+              class="signature-image"
+              src="{{signatureDataUrl}}"
+              alt="消費者簽名"
+            />
+            <p>簽名日期：{{signedAt}}</p>
+          </div>
+          <div class="signature-box">
+            <h3>業者蓋章欄位</h3>
+            <div class="stamp-area" aria-label="業者蓋章欄位"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

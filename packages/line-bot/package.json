@@ -6,12 +6,21 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {
-    "dev": "tsx src/index.ts",
+    "dev": "tsx watch src/server.ts",
+    "dev:tunnel": "npx ngrok http 3002",
     "build": "tsc --noEmit",
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit"
   },
+  "dependencies": {
+    "@hono/node-server": "^1.13.7",
+    "@line/bot-sdk": "^9.3.0",
+    "@repo/db": "workspace:*",
+    "hono": "^4.7.5",
+    "zod": "^3.23.8"
+  },
   "devDependencies": {
+    "@types/node": "^22.0.0",
     "tsx": "^4.19.0"
   }
 }

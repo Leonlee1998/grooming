@@ -2,6 +2,7 @@ node_modules
 .pnpm-store
 
 .next
+.turbo
 out
 dist
 coverage
@@ -20,3 +21,5 @@ packages/db/generated/
 **/public/worker-*.js
 **/public/sw.js.map
 **/public/workbox-*.js.map
+
+.vercel

@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/overtime-check",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/pickup-reminder",
+      "schedule": "5 0 * * *"
+    }
+  ]
+}
