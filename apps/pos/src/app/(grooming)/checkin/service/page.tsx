@@ -7,6 +7,7 @@ import { StepIndicator } from '@/components/ui/StepIndicator'
 import { BigButton } from '@/components/ui/BigButton'
 import { CancelCheckinButton } from '@/components/checkin/CancelCheckinButton'
 import { useCheckinStore } from '@/stores/checkin'
+import { useShallow } from 'zustand/react/shallow'
 import {
   calculateOrderPrice,
   getActiveServices,
@@ -44,6 +45,8 @@ const emptyCalculation: PriceCalculation = {
   estimatedMinutes: 0,
   memberDiscountRate: 0,
   memberName: null,
+  memberId: null,
+  memberBalance: null,
 }
 
 function formatMoney(amount: number) {
@@ -64,18 +67,26 @@ export default function ServicePage() {
     petName,
     selectedServices,
     storedStaffId,
+    onlineContractId,
+    onlineContractServiceIds,
     setServices,
     setStaff,
     setPriceQuote,
-  } = useCheckinStore((s) => ({
-    petId: s.petId,
-    petName: s.petName,
-    selectedServices: s.selectedServices,
-    storedStaffId: s.staffId,
-    setServices: s.setServices,
-    setStaff: s.setStaff,
-    setPriceQuote: s.setPriceQuote,
-  }))
+    setNeedsSupplementary,
+  } = useCheckinStore(
+    useShallow((s) => ({
+      petId: s.petId,
+      petName: s.petName,
+      selectedServices: s.selectedServices,
+      storedStaffId: s.staffId,
+      onlineContractId: s.onlineContractId,
+      onlineContractServiceIds: s.onlineContractServiceIds,
+      setServices: s.setServices,
+      setStaff: s.setStaff,
+      setPriceQuote: s.setPriceQuote,
+      setNeedsSupplementary: s.setNeedsSupplementary,
+    })),
+  )
 
   const [services, setServicesList] = useState<Service[]>([])
   const [staff, setStaffList] = useState<Staff[]>([])
@@ -92,6 +103,10 @@ export default function ServicePage() {
     useState<PriceCalculation>(emptyCalculation)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  const [showSupplementaryModal, setShowSupplementaryModal] = useState(false)
+  const [pendingConfirmData, setPendingConfirmData] = useState<{
+    newServiceNames: string[]
+  } | null>(null)
   const [pricingLoading, setPricingLoading] = useState(false)
 
   useEffect(() => {
@@ -199,12 +214,7 @@ export default function ServicePage() {
     )
   }
 
-  function handleConfirm() {
-    if (!canContinue) {
-      setError('請至少選擇一項服務，並等待金額試算完成')
-      return
-    }
-
+  function commitAndProceed(isSupplementary: boolean) {
     setServices(
       calculation.items.map((item) => ({
         serviceId: item.serviceId,
@@ -229,8 +239,35 @@ export default function ServicePage() {
       subtotalAmount: calculation.subtotalAmount,
       discountAmount: calculation.discountAmount,
       totalAmount: calculation.totalAmount,
+      memberId: calculation.memberId,
+      memberBalance: calculation.memberBalance,
     })
+    setNeedsSupplementary(isSupplementary)
     router.push('/checkin/confirm')
+  }
+
+  function handleConfirm() {
+    if (!canContinue) {
+      setError('請至少選擇一項服務，並等待金額試算完成')
+      return
+    }
+
+    // 偵測是否有線上簽約且加購新服務
+    if (onlineContractId) {
+      const originalIds = new Set(onlineContractServiceIds)
+      const newItems = calculation.items.filter(
+        (item) => !originalIds.has(item.serviceId),
+      )
+      if (newItems.length > 0) {
+        setPendingConfirmData({
+          newServiceNames: newItems.map((i) => i.serviceName),
+        })
+        setShowSupplementaryModal(true)
+        return
+      }
+    }
+
+    commitAndProceed(false)
   }
 
   return (
@@ -244,6 +281,31 @@ export default function ServicePage() {
             {petName} 的服務與費用會在簽約前完整揭露
           </p>
         </div>
+
+        {/* 線上已簽約提示 */}
+        {onlineContractId && (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 px-5 py-3 flex items-start gap-3">
+            <span className="text-xl mt-0.5">⚡</span>
+            <div>
+              <p className="font-semibold text-amber-900 text-sm">
+                此客戶已線上簽約
+              </p>
+              <p className="text-amber-700 text-xs mt-0.5">
+                若選擇原契約以外的服務，將自動產生補充契約，需請客戶補簽。
+                {onlineContractServiceIds.length > 0 && (
+                  <span className="ml-1">
+                    原訂服務：
+                    {onlineContractServiceIds
+                      .map(
+                        (id) => services.find((s) => s.id === id)?.name ?? id,
+                      )
+                      .join('、')}
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
+        )}
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_400px]">
           <section className="flex flex-col gap-5">
@@ -532,6 +594,64 @@ export default function ServicePage() {
           </aside>
         </div>
       </div>
+
+      {/* 補充契約確認 Modal */}
+      {showSupplementaryModal && pendingConfirmData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowSupplementaryModal(false)}
+          />
+          <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 flex flex-col gap-5">
+            <div className="flex items-start gap-3">
+              <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center text-2xl flex-shrink-0">
+                ⚡
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-stone-900">
+                  加購項目需補簽
+                </h2>
+                <p className="text-stone-500 text-sm mt-1">
+                  客戶已線上簽約，以下為新增的服務項目，需請客戶補簽補充契約：
+                </p>
+              </div>
+            </div>
+
+            <ul className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 flex flex-col gap-1.5">
+              {pendingConfirmData.newServiceNames.map((name) => (
+                <li
+                  key={name}
+                  className="flex items-center gap-2 text-amber-900 font-semibold text-sm"
+                >
+                  <span className="text-amber-500">+</span>
+                  {name}
+                </li>
+              ))}
+            </ul>
+
+            <p className="text-xs text-stone-400 leading-relaxed">
+              系統將自動產生補充契約，僅列示加購服務與差額費用，並標註原契約編號。
+            </p>
+
+            <div className="grid grid-cols-2 gap-3">
+              <BigButton
+                variant="secondary"
+                onClick={() => setShowSupplementaryModal(false)}
+              >
+                返回修改
+              </BigButton>
+              <BigButton
+                onClick={() => {
+                  setShowSupplementaryModal(false)
+                  commitAndProceed(true)
+                }}
+              >
+                確認，繼續補簽
+              </BigButton>
+            </div>
+          </div>
+        </div>
+      )}
     </PosLayout>
   )
 }

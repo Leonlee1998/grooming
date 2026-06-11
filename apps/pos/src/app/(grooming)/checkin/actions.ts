@@ -1,9 +1,9 @@
 'use server'
 
-import { prismaAdmin } from '@repo/db'
-import { fillTemplate, generatePdf, uploadContractPdf } from '@repo/contract'
-import type { ContractData } from '@repo/contract'
+import { prismaAdmin, calculatePrice } from '@repo/db'
+import type { PriceRuleData } from '@repo/db'
 import { z } from 'zod'
+import { getStoreId, getStoreIdFromCustomer } from '../../../lib/store'
 
 export type ActionResult<T> =
   | { ok: true; data: T }
@@ -41,6 +41,8 @@ export type PriceCalculation = {
   estimatedMinutes: number
   memberDiscountRate: number
   memberName: string | null
+  memberId: string | null
+  memberBalance: number | null
   error?: string
 }
 
@@ -60,8 +62,8 @@ export async function searchCustomerByPhone(phone: string): Promise<
   const cleaned = phone.trim().replace(/\s/g, '')
   if (cleaned.length < 8) return { ok: false, error: '電話格式不正確' }
   try {
-    const customer = await prismaAdmin.customer.findUnique({
-      where: { phone: cleaned },
+    const customer = await prismaAdmin.customer.findFirst({
+      where: { phone: cleaned, storeId: getStoreId() },
       select: {
         id: true,
         name: true,
@@ -69,12 +71,12 @@ export async function searchCustomerByPhone(phone: string): Promise<
         email: true,
         emergencyContact: true,
         emergencyPhone: true,
-        _count: { select: { pets: true } },
+        pets: { select: { id: true } },
       },
     })
     if (!customer) return { ok: true, data: null }
-    const { _count, ...rest } = customer
-    return { ok: true, data: { ...rest, petCount: _count.pets } }
+    const { pets, ...rest } = customer
+    return { ok: true, data: { ...rest, petCount: pets.length } }
   } catch {
     return { ok: false, error: '查詢客戶失敗，請稍後再試' }
   }
@@ -107,9 +109,11 @@ export async function upsertCustomer(raw: unknown): Promise<
 
   const { phone, name, email, emergencyContact, emergencyPhone } = parsed.data
   try {
+    const storeId = getStoreId()
     const customer = await prismaAdmin.customer.upsert({
-      where: { phone },
+      where: { storeId_phone: { storeId, phone } },
       create: {
+        storeId,
         phone,
         name,
         email: email || null,
@@ -276,9 +280,11 @@ export async function createPet(
 
   const { weightKg, birthDate, ...data } = parsed.data
   try {
+    const storeId = await getStoreIdFromCustomer(data.customerId)
     const pet = await prismaAdmin.pet.create({
       data: {
         ...data,
+        storeId,
         weightKg: weightKg ? parseFloat(weightKg) : undefined,
         birthDate: birthDate ? new Date(birthDate) : undefined,
       },
@@ -351,123 +357,15 @@ const emptyPriceCalculation = (error?: string): PriceCalculation => ({
   estimatedMinutes: 0,
   memberDiscountRate: 0,
   memberName: null,
+  memberId: null,
+  memberBalance: null,
   ...(error ? { error } : {}),
 })
-
-type CalculatePriceInput = {
-  items: Array<{
-    serviceId: string
-    serviceName: string
-    category: string
-    basePrice: number
-    estimatedMinutes: number
-    quantity: number
-    priceRules: Array<{
-      id: string
-      name: string
-      weightMin: unknown
-      weightMax: unknown
-      breed: string | null
-      priceAdjustment: number
-      adjustmentType: string
-    }>
-  }>
-  pet: {
-    weightKg: unknown
-    breed: string | null
-  }
-  staffSurcharge: number
-  member: {
-    plan: {
-      name: string
-      discountRate: unknown
-    }
-  } | null
-}
 
 function decimalToNumber(value: unknown): number | null {
   if (value === null || value === undefined) return null
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : null
-}
-
-function ruleMatchesPet(
-  rule: CalculatePriceInput['items'][number]['priceRules'][number],
-  pet: CalculatePriceInput['pet'],
-) {
-  const weight = decimalToNumber(pet.weightKg)
-  const weightMin = decimalToNumber(rule.weightMin)
-  const weightMax = decimalToNumber(rule.weightMax)
-  const petBreed = (pet.breed ?? '').trim().toLowerCase()
-  const ruleBreed = (rule.breed ?? '').trim().toLowerCase()
-
-  if (weightMin !== null && (weight === null || weight < weightMin))
-    return false
-  if (weightMax !== null && (weight === null || weight > weightMax))
-    return false
-  if (ruleBreed && petBreed !== ruleBreed) return false
-
-  return true
-}
-
-function calculatePrice(input: CalculatePriceInput): PriceCalculation {
-  const calculatedItems = input.items.map((item) => {
-    let unitPrice = item.basePrice
-    const priceAdjustments: PriceAdjustmentDetail[] = []
-
-    item.priceRules.forEach((rule) => {
-      if (!ruleMatchesPet(rule, input.pet)) return
-
-      const amount =
-        rule.adjustmentType === 'PERCENTAGE'
-          ? Math.round((unitPrice * rule.priceAdjustment) / 100)
-          : rule.priceAdjustment
-
-      unitPrice += amount
-      priceAdjustments.push({
-        ruleId: rule.id,
-        ruleName: rule.name,
-        amount,
-      })
-    })
-
-    return {
-      serviceId: item.serviceId,
-      serviceName: item.serviceName,
-      category: item.category,
-      basePrice: item.basePrice,
-      unitPrice,
-      quantity: item.quantity,
-      amount: unitPrice * item.quantity,
-      estimatedMinutes: item.estimatedMinutes * item.quantity,
-      priceAdjustments,
-    }
-  })
-
-  const serviceSubtotal = calculatedItems.reduce(
-    (sum, item) => sum + item.amount,
-    0,
-  )
-  const subtotalAmount = serviceSubtotal + input.staffSurcharge
-  const memberDiscountRate =
-    decimalToNumber(input.member?.plan.discountRate) ?? 0
-  const discountAmount = Math.round(subtotalAmount * memberDiscountRate)
-  const totalAmount = Math.max(0, subtotalAmount - discountAmount)
-  const estimatedMinutes = calculatedItems.reduce(
-    (sum, item) => sum + item.estimatedMinutes,
-    0,
-  )
-
-  return {
-    items: calculatedItems,
-    subtotalAmount,
-    discountAmount,
-    totalAmount,
-    staffSurcharge: input.staffSurcharge,
-    estimatedMinutes,
-    memberDiscountRate,
-    memberName: input.member?.plan.name ?? null,
-  }
 }
 
 export async function calculateOrderPrice(
@@ -521,13 +419,11 @@ export async function calculateOrderPrice(
             select: {
               member: {
                 select: {
+                  id: true,
+                  balance: true,
                   expiresAt: true,
                   plan: {
-                    select: {
-                      name: true,
-                      discountRate: true,
-                      isActive: true,
-                    },
+                    select: { name: true, discountRate: true, isActive: true },
                   },
                 },
               },
@@ -545,13 +441,11 @@ export async function calculateOrderPrice(
         ? prismaAdmin.member.findUnique({
             where: { id: memberId },
             select: {
+              id: true,
+              balance: true,
               expiresAt: true,
               plan: {
-                select: {
-                  name: true,
-                  discountRate: true,
-                  isActive: true,
-                },
+                select: { name: true, discountRate: true, isActive: true },
               },
             },
           })
@@ -561,30 +455,91 @@ export async function calculateOrderPrice(
     if (!pet) return emptyPriceCalculation('找不到寵物資料')
 
     const now = new Date()
-    const member = explicitMember ?? pet.customer.member
+    const rawMember = explicitMember ?? pet.customer.member
     const activeMember =
-      member &&
-      member.plan.isActive &&
-      (!member.expiresAt || member.expiresAt > now)
-        ? member
+      rawMember &&
+      rawMember.plan.isActive &&
+      (!rawMember.expiresAt || rawMember.expiresAt > now)
+        ? rawMember
         : null
 
-    const serviceItems = services.map((service) => ({
+    const staffSurcharge = staff?.surcharge ?? 0
+    const petWeightKg = decimalToNumber(pet.weightKg) ?? undefined
+    const memberDiscountRate =
+      decimalToNumber(activeMember?.plan.discountRate) ?? 0
+
+    // Map Prisma Decimal → number for PriceRuleData
+    const serviceInputs = services.map((service) => ({
       serviceId: service.id,
       serviceName: service.name,
-      category: service.category,
       basePrice: service.basePrice,
-      estimatedMinutes: service.estimatedMinutes,
       quantity: quantityByServiceId.get(service.id) ?? 1,
-      priceRules: service.priceRules,
+      priceRules: service.priceRules.map(
+        (rule): PriceRuleData => ({
+          id: rule.id,
+          name: rule.name,
+          weightMin: decimalToNumber(rule.weightMin),
+          weightMax: decimalToNumber(rule.weightMax),
+          breed: rule.breed,
+          priceAdjustment: rule.priceAdjustment,
+          adjustmentType: rule.adjustmentType as 'FIXED' | 'PERCENTAGE',
+        }),
+      ),
     }))
 
-    return calculatePrice({
-      items: serviceItems,
-      pet,
-      staffSurcharge: staff?.surcharge ?? 0,
-      member: activeMember,
+    const result = calculatePrice({
+      services: serviceInputs,
+      petWeightKg,
+      petBreed: pet.breed ?? undefined,
+      staffSurcharge,
+      memberDiscountRate:
+        memberDiscountRate > 0 ? memberDiscountRate : undefined,
     })
+
+    // category / estimatedMinutes are not in PriceResult — build from DB data
+    const serviceMeta = new Map(
+      services.map((s) => [
+        s.id,
+        { category: s.category, estimatedMinutes: s.estimatedMinutes },
+      ]),
+    )
+
+    const calculatedItems: PriceCalculationItem[] = result.items.map((item) => {
+      const meta = serviceMeta.get(item.serviceId)
+      return {
+        serviceId: item.serviceId,
+        serviceName: item.serviceName,
+        category: meta?.category ?? '',
+        basePrice: item.basePrice,
+        unitPrice: item.unitPrice,
+        quantity: item.quantity,
+        amount: item.amount,
+        estimatedMinutes: (meta?.estimatedMinutes ?? 0) * item.quantity,
+        priceAdjustments: item.appliedRules.map((rule) => ({
+          ruleId: rule.ruleId,
+          ruleName: rule.ruleName,
+          amount: rule.adjustment,
+        })),
+      }
+    })
+
+    const estimatedMinutes = calculatedItems.reduce(
+      (sum, item) => sum + item.estimatedMinutes,
+      0,
+    )
+
+    return {
+      items: calculatedItems,
+      subtotalAmount: result.subtotal + result.staffSurcharge,
+      discountAmount: result.discountAmount,
+      totalAmount: result.total,
+      staffSurcharge: result.staffSurcharge,
+      estimatedMinutes,
+      memberDiscountRate,
+      memberName: activeMember?.plan.name ?? null,
+      memberId: activeMember?.id ?? null,
+      memberBalance: activeMember?.balance ?? null,
+    }
   } catch (e) {
     console.error(e)
     return emptyPriceCalculation('試算金額失敗，請稍後再試')
@@ -626,9 +581,11 @@ export async function createDraftOrder(
 
   const { items, ...rest } = parsed.data
   try {
+    const storeId = await getStoreIdFromCustomer(rest.customerId)
     const order = await prismaAdmin.order.create({
       data: {
         ...rest,
+        storeId,
         overtimeFee: 0,
         items: {
           create: items.map((item) => ({
@@ -649,6 +606,66 @@ export async function createDraftOrder(
   }
 }
 
+// ─── Online Contract Detection ───────────────────────────────────────────────
+// 查找這位客戶/寵物最近的 PENDING/CONFIRMED 預約，若有線上簽約紀錄則回傳相關資訊
+
+export async function getOnlineContractForPet(
+  customerId: string,
+  petId: string,
+): Promise<
+  ActionResult<{
+    appointmentId: string
+    onlineContractId: string
+    originalServiceIds: string[]
+    originalDraftOrderId: string | null
+  } | null>
+> {
+  if (!customerId || !petId) return { ok: true, data: null }
+  try {
+    const appointment = await prismaAdmin.appointment.findFirst({
+      where: {
+        customerId,
+        petId,
+        signedOnline: true,
+        onlineContractId: { not: null },
+        status: { in: ['PENDING', 'CONFIRMED'] },
+      },
+      orderBy: { scheduledAt: 'asc' },
+      select: {
+        id: true,
+        onlineContractId: true,
+        order: {
+          select: {
+            id: true,
+            status: true,
+            items: { select: { serviceId: true } },
+          },
+        },
+      },
+    })
+
+    if (!appointment || !appointment.onlineContractId) {
+      return { ok: true, data: null }
+    }
+
+    const draftOrder =
+      appointment.order?.status === 'DRAFT' ? appointment.order : null
+
+    return {
+      ok: true,
+      data: {
+        appointmentId: appointment.id,
+        onlineContractId: appointment.onlineContractId,
+        originalServiceIds: draftOrder?.items.map((i) => i.serviceId) ?? [],
+        originalDraftOrderId: draftOrder?.id ?? null,
+      },
+    }
+  } catch (e) {
+    console.error('getOnlineContractForPet failed:', e)
+    return { ok: false, error: '查詢線上預約資料失敗' }
+  }
+}
+
 export async function cancelDraftOrder(
   orderId: string | null,
 ): Promise<ActionResult<{ cancelled: boolean }>> {
@@ -666,67 +683,182 @@ export async function cancelDraftOrder(
   }
 }
 
-// ─── Step 5: Sign + Finalize ──────────────────────────────────────────────
+// ─── 今日線上已簽約預約偵測（報到頁用）──────────────────────────────────────
 
-const signSchema = z.object({
-  orderId: z.string(),
-  customerId: z.string(),
-  petId: z.string(),
-  contractData: z.record(z.unknown()),
-  signatureDataUrl: z.string().startsWith('data:image/'),
-})
+export type OnlineAppointmentInfo = {
+  id: string
+  scheduledAt: string
+  petId: string
+  petName: string
+  petSpecies: string
+  staffName: string | null
+  serviceNames: string[]
+}
 
-export async function signAndFinalize(
-  raw: unknown,
-): Promise<ActionResult<{ contractId: string; pdfUrl: string }>> {
-  const parsed = signSchema.safeParse(raw)
-  if (!parsed.success)
+export async function checkOnlineBooking(
+  customerId: string,
+): Promise<ActionResult<{ appointments: OnlineAppointmentInfo[] }>> {
+  if (!customerId) return { ok: false, error: '缺少客戶 ID' }
+  try {
+    const todayStr = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Taipei',
+    }).format(new Date())
+    const gte = new Date(`${todayStr}T00:00:00+08:00`)
+    const lt = new Date(gte.getTime() + 86_400_000)
+
+    const appts = await prismaAdmin.appointment.findMany({
+      where: {
+        customerId,
+        signedOnline: true,
+        status: { in: ['PENDING', 'CONFIRMED'] },
+        scheduledAt: { gte, lt },
+      },
+      select: {
+        id: true,
+        scheduledAt: true,
+        pet: { select: { id: true, name: true, species: true } },
+        staff: { select: { name: true } },
+        order: {
+          select: {
+            items: { select: { serviceName: true }, orderBy: { id: 'asc' } },
+          },
+        },
+      },
+      orderBy: { scheduledAt: 'asc' },
+    })
+
     return {
-      ok: false,
-      error: parsed.error.errors[0]?.message ?? '資料格式錯誤',
+      ok: true,
+      data: {
+        appointments: appts.map((a) => ({
+          id: a.id,
+          scheduledAt: a.scheduledAt.toISOString(),
+          petId: a.pet.id,
+          petName: a.pet.name,
+          petSpecies: a.pet.species,
+          staffName: a.staff?.name ?? null,
+          serviceNames: a.order?.items.map((i) => i.serviceName) ?? [],
+        })),
+      },
     }
+  } catch (e) {
+    console.error('checkOnlineBooking error:', e)
+    return { ok: false, error: '查詢線上預約失敗' }
+  }
+}
 
-  const { orderId, customerId, petId, contractData, signatureDataUrl } =
-    parsed.data
+// 確認到店（採用線上合約，不補簽）
+export async function confirmOnlineBookingWalkIn(
+  appointmentId: string,
+  customerId: string,
+): Promise<
+  ActionResult<{
+    orderId: string
+    petName: string
+    petId: string
+    totalAmount: number
+    pickupDeadlineAt: string | null
+    earnedPoints: number | null
+  }>
+> {
+  if (!appointmentId || !customerId) return { ok: false, error: '缺少必要參數' }
 
   try {
-    const template = await prismaAdmin.contractTemplate.findFirst({
-      where: { type: 'SINGLE_SERVICE', isActive: true },
-      select: { id: true, htmlContent: true },
-      orderBy: { version: 'desc' },
+    const appt = await prismaAdmin.appointment.findUnique({
+      where: { id: appointmentId },
+      select: {
+        id: true,
+        pickupDeadlineAt: true,
+        pet: { select: { id: true, name: true } },
+        order: {
+          select: { id: true, status: true, totalAmount: true },
+        },
+      },
     })
-    if (!template)
-      return { ok: false, error: '找不到契約模板，請先執行 db:seed' }
 
-    const filledData = { ...contractData, signatureDataUrl } as ContractData
-    const filledHtml = fillTemplate(template.htmlContent, filledData)
-    const pdfBuffer = await generatePdf(filledHtml)
-    const pdfUrl = await uploadContractPdf(pdfBuffer, orderId)
+    if (!appt) return { ok: false, error: '找不到預約紀錄' }
+    if (!appt.order) {
+      return {
+        ok: false,
+        error: '此預約尚未關聯訂單，請透過正常報到流程建立服務訂單',
+      }
+    }
 
     const now = new Date()
-    const contract = await prismaAdmin.contract.create({
+    let earnedPoints: number | null = null
+
+    await prismaAdmin.$transaction(async (tx) => {
+      await tx.appointment.update({
+        where: { id: appointmentId },
+        data: { status: 'IN_PROGRESS', actualStartAt: now },
+      })
+
+      if (appt.order!.status === 'DRAFT') {
+        await tx.order.update({
+          where: { id: appt.order!.id },
+          data: { status: 'CONFIRMED' },
+        })
+      }
+
+      const member = await tx.member.findUnique({
+        where: { customerId },
+        select: {
+          id: true,
+          expiresAt: true,
+          plan: { select: { pointRate: true, isActive: true } },
+        },
+      })
+
+      if (
+        member &&
+        member.plan.isActive &&
+        (!member.expiresAt || member.expiresAt > now) &&
+        appt.order!.totalAmount > 0
+      ) {
+        const earned = Math.floor(
+          appt.order!.totalAmount * Number(member.plan.pointRate),
+        )
+        if (earned > 0) {
+          await tx.pointTransaction.create({
+            data: {
+              memberId: member.id,
+              orderId: appt.order!.id,
+              amount: earned,
+              type: 'EARN',
+              note: '到店確認獲得點數',
+            },
+          })
+          await tx.member.update({
+            where: { id: member.id },
+            data: { points: { increment: earned } },
+          })
+          earnedPoints = earned
+        }
+      }
+
+      await tx.orderAuditLog.create({
+        data: {
+          orderId: appt.order!.id,
+          action: 'UPDATED',
+          newValue: JSON.stringify({ status: 'CONFIRMED' }),
+          note: '客戶到店確認（採用線上合約）',
+        },
+      })
+    })
+
+    return {
+      ok: true,
       data: {
-        orderId,
-        templateId: template.id,
-        customerId,
-        petId,
-        filledData: filledData as object,
-        signatureDataUrl,
-        signedAt: now,
-        pdfUrl,
-        pdfGeneratedAt: now,
+        orderId: appt.order.id,
+        petName: appt.pet.name,
+        petId: appt.pet.id,
+        totalAmount: appt.order.totalAmount,
+        pickupDeadlineAt: appt.pickupDeadlineAt?.toISOString() ?? null,
+        earnedPoints,
       },
-      select: { id: true },
-    })
-
-    await prismaAdmin.order.update({
-      where: { id: orderId },
-      data: { status: 'CONFIRMED' },
-    })
-
-    return { ok: true, data: { contractId: contract.id, pdfUrl } }
+    }
   } catch (e) {
-    console.error(e)
-    return { ok: false, error: '簽約失敗，請稍後再試' }
+    console.error('confirmOnlineBookingWalkIn error:', e)
+    return { ok: false, error: '確認到店失敗，請稍後再試' }
   }
 }
