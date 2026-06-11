@@ -7,6 +7,7 @@ import {
   startService,
   completeService,
   notifyPickup,
+  addOvertimeFee,
   type ServiceCard,
   type DisplayStatus,
 } from './actions'
@@ -87,7 +88,8 @@ function ServiceCardItem({
   now: Date
   onAction: () => void
 }) {
-  const [loading, setLoading] = useState(false)
+  const [notifyLoading, setNotifyLoading] = useState(false)
+  const [overtimeLoading, setOvertimeLoading] = useState(false)
   const [toast, setToast] = useState('')
   const cfg = STATUS_CONFIG[card.displayStatus]
 
@@ -105,25 +107,28 @@ function ServiceCardItem({
 
   const isOvertime = liveMinutes !== null && liveMinutes < 0
 
+  function showToast(msg: string) {
+    setToast(msg)
+    setTimeout(() => setToast(''), 4000)
+  }
+
   async function handleStart() {
-    setLoading(true)
+    setNotifyLoading(true)
     const res = await startService(card.appointmentId)
-    setLoading(false)
+    setNotifyLoading(false)
     if (!res.ok) {
-      setToast(res.error ?? '操作失敗')
-      setTimeout(() => setToast(''), 3000)
+      showToast(res.error ?? '操作失敗')
     } else {
       onAction()
     }
   }
 
   async function handleComplete() {
-    setLoading(true)
+    setNotifyLoading(true)
     const res = await completeService(card.appointmentId)
-    setLoading(false)
+    setNotifyLoading(false)
     if (!res.ok) {
-      setToast(res.error ?? '操作失敗')
-      setTimeout(() => setToast(''), 3000)
+      showToast(res.error ?? '操作失敗')
     } else {
       onAction()
     }
@@ -131,17 +136,33 @@ function ServiceCardItem({
 
   async function handleNotify() {
     if (!card.lineUserId) return
-    setLoading(true)
+    setNotifyLoading(true)
     const res = await notifyPickup({
       appointmentId: card.appointmentId,
       customerName: card.customerName,
       petName: card.petName,
       lineUserId: card.lineUserId,
     })
-    setLoading(false)
-    setToast(res.ok ? 'LINE 通知已發送' : (res.error ?? '發送失敗'))
-    setTimeout(() => setToast(''), 4000)
+    setNotifyLoading(false)
+    showToast(res.ok ? 'LINE 通知已發送' : (res.error ?? '發送失敗'))
+    if (res.ok) onAction()
   }
+
+  async function handleAddOvertimeFee() {
+    setOvertimeLoading(true)
+    const res = await addOvertimeFee(card.appointmentId)
+    setOvertimeLoading(false)
+    if (!res.ok) {
+      showToast(res.error ?? '計費失敗')
+    } else {
+      showToast(`已加收逾時費 $${res.fee}，LINE 通知已發送`)
+      onAction()
+    }
+  }
+
+  const isAwaitingOrOvertime =
+    card.displayStatus === 'AWAITING_PICKUP' ||
+    card.displayStatus === 'OVERTIME'
 
   return (
     <div
@@ -247,32 +268,77 @@ function ServiceCardItem({
       )}
 
       {/* Action buttons */}
-      <div className="pt-1">
+      <div className="pt-1 flex flex-col gap-2">
         {card.displayStatus === 'WAITING' && (
-          <ActionButton loading={loading} onClick={handleStart} color="blue">
+          <ActionButton
+            loading={notifyLoading}
+            onClick={handleStart}
+            color="blue"
+          >
             開始服務
           </ActionButton>
         )}
+
         {card.displayStatus === 'IN_PROGRESS' && (
           <ActionButton
-            loading={loading}
+            loading={notifyLoading}
             onClick={handleComplete}
             color="emerald"
           >
             服務完成
           </ActionButton>
         )}
-        {(card.displayStatus === 'AWAITING_PICKUP' ||
-          card.displayStatus === 'OVERTIME') && (
-          <ActionButton
-            loading={loading}
-            onClick={handleNotify}
-            color={isOvertime ? 'red' : 'amber'}
-            disabled={!card.lineUserId}
-            title={!card.lineUserId ? '客戶未綁定 LINE，請電話通知' : undefined}
-          >
-            {card.lineUserId ? '一鍵通知接送' : '無 LINE（請電話通知）'}
-          </ActionButton>
+
+        {isAwaitingOrOvertime && (
+          <>
+            {/* Notification button / already-notified state */}
+            {card.pickupNotifiedAt ? (
+              <div className="flex items-center gap-2">
+                <span className="flex-1 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm font-semibold text-center py-3 leading-tight">
+                  已通知 ✓{' '}
+                  <span className="font-normal">
+                    {fmtTime(card.pickupNotifiedAt)}
+                  </span>
+                </span>
+                <button
+                  onClick={handleNotify}
+                  disabled={notifyLoading || !card.lineUserId}
+                  className="min-h-[48px] px-4 rounded-xl border-2 border-stone-300 text-stone-700 text-sm font-semibold hover:bg-stone-50 disabled:opacity-40 transition-colors"
+                >
+                  {notifyLoading ? '…' : '再次提醒'}
+                </button>
+              </div>
+            ) : (
+              <ActionButton
+                loading={notifyLoading}
+                onClick={handleNotify}
+                color={isOvertime ? 'red' : 'amber'}
+                disabled={!card.lineUserId}
+                title={
+                  !card.lineUserId ? '客戶未綁定 LINE，請電話通知' : undefined
+                }
+              >
+                {card.lineUserId ? '一鍵通知接送' : '無 LINE（請電話通知）'}
+              </ActionButton>
+            )}
+
+            {/* Overtime fee button — only for OVERTIME cards with an order */}
+            {card.displayStatus === 'OVERTIME' &&
+              card.orderId &&
+              (card.overtimeFee > 0 ? (
+                <div className="rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm font-semibold text-center py-3">
+                  已加收逾時費 ${card.overtimeFee}
+                </div>
+              ) : (
+                <ActionButton
+                  loading={overtimeLoading}
+                  onClick={handleAddOvertimeFee}
+                  color="red"
+                >
+                  加收逾時費
+                </ActionButton>
+              ))}
+          </>
         )}
       </div>
 
@@ -309,7 +375,7 @@ function ActionButton({
   children: React.ReactNode
   loading: boolean
   onClick: () => void
-  color: 'blue' | 'emerald' | 'amber' | 'red'
+  color: 'blue' | 'emerald' | 'amber' | 'red' | 'stone'
   disabled?: boolean
   title?: string
 }) {
@@ -318,6 +384,7 @@ function ActionButton({
     emerald: 'bg-emerald-700 text-white active:bg-emerald-800',
     amber: 'bg-amber-500 text-white active:bg-amber-600',
     red: 'bg-red-600 text-white active:bg-red-700',
+    stone: 'bg-stone-200 text-stone-800 active:bg-stone-300',
   }
   return (
     <button

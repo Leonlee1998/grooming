@@ -2,6 +2,7 @@
 
 import { z } from 'zod'
 import { prismaAdmin } from '@repo/db'
+import { sendPickupReady, sendOvertimeNotice } from '@repo/line-bot'
 import { getStoreId } from '@/lib/store'
 
 // ─── Types ────────────────────────────────────────────────────────────────
@@ -31,6 +32,8 @@ export interface ServiceCard {
   pickupDeadlineAt: string | null
   actualStartAt: string | null
   actualEndAt: string | null
+  pickupNotifiedAt: string | null
+  overtimeFee: number
   displayStatus: DisplayStatus
   minutesToOvertime: number | null
 }
@@ -108,6 +111,7 @@ export async function getServiceBoard(
       actualEndAt: true,
       pickupDeadlineAt: true,
       pickedUpAt: true,
+      pickupNotifiedAt: true,
       customer: { select: { name: true, phone: true, lineUserId: true } },
       pet: {
         select: {
@@ -122,6 +126,7 @@ export async function getServiceBoard(
       order: {
         select: {
           id: true,
+          overtimeFee: true,
           items: { select: { serviceName: true, quantity: true } },
         },
       },
@@ -159,6 +164,8 @@ export async function getServiceBoard(
       pickupDeadlineAt: appt.pickupDeadlineAt?.toISOString() ?? null,
       actualStartAt: appt.actualStartAt?.toISOString() ?? null,
       actualEndAt: appt.actualEndAt?.toISOString() ?? null,
+      pickupNotifiedAt: appt.pickupNotifiedAt?.toISOString() ?? null,
+      overtimeFee: appt.order?.overtimeFee ?? 0,
       displayStatus,
       minutesToOvertime,
     }
@@ -234,78 +241,103 @@ export async function notifyPickup(
   const parsed = notifyPickupSchema.safeParse(raw)
   if (!parsed.success) return { ok: false, error: '資料格式錯誤' }
 
-  const { customerName, petName, lineUserId } = parsed.data
-  const token = process.env.LINE_CHANNEL_ACCESS_TOKEN
-  if (!token) return { ok: false, error: 'LINE Token 未設定' }
+  const { appointmentId, petName, lineUserId } = parsed.data
 
   try {
-    const res = await fetch('https://api.line.me/v2/bot/message/push', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+    // Look up store name and order ID for the Flex Message
+    const appt = await prismaAdmin.appointment.findUniqueOrThrow({
+      where: { id: appointmentId },
+      select: {
+        store: { select: { name: true } },
+        order: { select: { id: true } },
       },
-      body: JSON.stringify({
-        to: lineUserId,
-        messages: [
-          {
-            type: 'flex',
-            altText: `${petName} 美容完成，可以來接回囉！`,
-            contents: {
-              type: 'bubble',
-              header: {
-                type: 'box',
-                layout: 'vertical',
-                backgroundColor: '#065f46',
-                paddingAll: 'lg',
-                contents: [
-                  {
-                    type: 'text',
-                    text: '美容完成，可以來接回了！',
-                    color: '#ffffff',
-                    weight: 'bold',
-                    size: 'lg',
-                  },
-                ],
-              },
-              body: {
-                type: 'box',
-                layout: 'vertical',
-                spacing: 'md',
-                paddingAll: 'lg',
-                contents: [
-                  {
-                    type: 'text',
-                    text: `${customerName} 您好！`,
-                    size: 'md',
-                    weight: 'bold',
-                  },
-                  {
-                    type: 'text',
-                    text: `${petName} 的美容服務已完成，歡迎隨時來店接回。請於約定時間內領取，超過 30 分鐘後將依約計收逾時費。`,
-                    size: 'sm',
-                    color: '#6b7280',
-                    wrap: true,
-                  },
-                ],
-              },
-            },
-          },
-        ],
-      }),
     })
 
-    if (!res.ok) {
-      console.error(
-        'notifyPickup LINE push failed:',
-        res.status,
-        await res.text(),
-      )
-      return { ok: false, error: 'LINE 發送失敗，請改以電話通知' }
-    }
+    const storeName = appt.store.name
+    const customerAppUrl = process.env.NEXT_PUBLIC_CUSTOMER_APP_URL ?? ''
+    const orderUrl = appt.order?.id
+      ? `${customerAppUrl}/orders/${appt.order.id}`
+      : customerAppUrl
+
+    await sendPickupReady(lineUserId, { petName, storeName, orderUrl })
+
+    await prismaAdmin.appointment.update({
+      where: { id: appointmentId },
+      data: { pickupNotifiedAt: new Date() },
+    })
+
     return { ok: true }
   } catch (e) {
     console.error('notifyPickup failed:', e)
-    return { ok: false, error: '通知發送失敗，請稍後再試' }
+    return { ok: false, error: 'LINE 發送失敗，請改以電話通知' }
+  }
+}
+
+// ─── addOvertimeFee ────────────────────────────────────────────────────────
+
+export async function addOvertimeFee(
+  appointmentId: string,
+): Promise<{ ok: boolean; fee?: number; error?: string }> {
+  if (!appointmentId) return { ok: false, error: '缺少預約 ID' }
+
+  try {
+    const appt = await prismaAdmin.appointment.findUniqueOrThrow({
+      where: { id: appointmentId },
+      select: {
+        pickupDeadlineAt: true,
+        customer: { select: { lineUserId: true } },
+        pet: { select: { name: true } },
+        order: { select: { id: true } },
+        store: {
+          select: {
+            name: true,
+            overtimeFeePerHour: true,
+            overtimeGraceMinutes: true,
+          },
+        },
+      },
+    })
+
+    if (!appt.order) return { ok: false, error: '此預約尚無訂單' }
+    if (!appt.pickupDeadlineAt) return { ok: false, error: '尚未設定接回時限' }
+
+    const now = new Date()
+    const overtimeMins = Math.floor(
+      (now.getTime() - appt.pickupDeadlineAt.getTime()) / 60_000,
+    )
+    const graceMins = appt.store.overtimeGraceMinutes
+
+    if (overtimeMins <= graceMins) {
+      return {
+        ok: false,
+        error: `尚在寬限期內（${graceMins} 分鐘），不可計費`,
+      }
+    }
+
+    const billableMins = overtimeMins - graceMins
+    const fee = Math.ceil(billableMins / 60) * appt.store.overtimeFeePerHour
+
+    await prismaAdmin.order.update({
+      where: { id: appt.order.id },
+      data: { overtimeFee: fee },
+    })
+
+    // Re-notify customer about overtime fee if they have LINE
+    if (appt.customer.lineUserId) {
+      try {
+        await sendOvertimeNotice(appt.customer.lineUserId, {
+          petName: appt.pet.name,
+          overtimeMinutes: overtimeMins,
+          fee,
+        })
+      } catch (e) {
+        console.error('addOvertimeFee: LINE notify failed (non-fatal)', e)
+      }
+    }
+
+    return { ok: true, fee }
+  } catch (e) {
+    console.error('addOvertimeFee failed:', e)
+    return { ok: false, error: '計費失敗，請稍後再試' }
   }
 }

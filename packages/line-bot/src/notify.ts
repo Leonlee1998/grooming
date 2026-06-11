@@ -12,6 +12,12 @@ export type OvertimeData = {
   fee: number
 }
 
+export type PickupReadyData = {
+  petName: string
+  storeName: string
+  orderUrl: string
+}
+
 function getAccessToken(): string {
   const token = process.env.LINE_CHANNEL_ACCESS_TOKEN
   if (!token) throw new Error('LINE_CHANNEL_ACCESS_TOKEN is not set')
@@ -31,6 +37,73 @@ async function pushMessage(to: string, messages: unknown[]): Promise<void> {
     const body = await res.text().catch(() => '')
     throw new Error(`LINE push failed (${res.status}): ${body}`)
   }
+}
+
+export async function sendPickupReady(
+  lineUserId: string,
+  data: PickupReadyData,
+): Promise<void> {
+  await pushMessage(lineUserId, [
+    {
+      type: 'flex',
+      altText: `${data.petName} 美容完成，可以來接回了！`,
+      contents: {
+        type: 'bubble',
+        header: {
+          type: 'box',
+          layout: 'vertical',
+          backgroundColor: '#065f46',
+          paddingAll: 'lg',
+          contents: [
+            {
+              type: 'text',
+              text: '美容完成，可以來接回了！',
+              color: '#ffffff',
+              weight: 'bold',
+              size: 'lg',
+            },
+          ],
+        },
+        body: {
+          type: 'box',
+          layout: 'vertical',
+          spacing: 'md',
+          paddingAll: 'lg',
+          contents: [
+            {
+              type: 'text',
+              text: `「${data.petName}」的美容服務已完成！`,
+              weight: 'bold',
+              size: 'md',
+            },
+            {
+              type: 'text',
+              text: `${data.storeName} 歡迎您隨時前來接回。請於約定時間內領取，超過 30 分鐘後將依約計收逾時費。`,
+              size: 'sm',
+              color: '#6b7280',
+              wrap: true,
+            },
+          ],
+        },
+        footer: {
+          type: 'box',
+          layout: 'vertical',
+          contents: [
+            {
+              type: 'button',
+              action: {
+                type: 'uri',
+                label: '查看明細',
+                uri: data.orderUrl,
+              },
+              style: 'primary',
+              color: '#065f46',
+            },
+          ],
+        },
+      },
+    },
+  ])
 }
 
 export async function sendPickupReminder(

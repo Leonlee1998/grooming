@@ -7,6 +7,34 @@ generator client {
   output   = "../generated/client"
 }
 
+// ─── Store（多店支援）────────────────────────────────────────────────────────
+
+model Store {
+  id                    String   @id @default(cuid())
+  name                  String
+  slug                  String   @unique
+  address               String?
+  phone                 String?
+  taxId                 String?
+  lineOaId              String?
+  businessHours         Json?
+  overtimeFeePerHour    Int      @default(0)
+  overtimeGraceMinutes  Int      @default(30)
+  isActive              Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  customers    Customer[]
+  pets         Pet[]
+  staff        Staff[]
+  services     Service[]
+  appointments Appointment[]
+  orders       Order[]
+  contracts    Contract[]
+  memberPlans  MemberPlan[]
+  promotions   Promotion[]
+}
+
 enum PetSpecies {
   DOG
   CAT
@@ -37,6 +65,12 @@ enum AppointmentSource {
   WALK_IN
   ONLINE
   LINE
+  POS_ONSITE
+}
+
+enum SignMethod {
+  ONSITE
+  ONLINE
 }
 
 enum OrderStatus {
@@ -89,29 +123,37 @@ enum DiscountType {
 enum ContractType {
   SINGLE_SERVICE
   PACKAGE
+  SUPPLEMENTARY
 }
 
 model Customer {
-  id               String   @id @default(cuid())
-  phone            String   @unique
+  id               String    @id @default(cuid())
+  storeId          String
+  phone            String
   name             String
   email            String?
   emergencyContact String?
   emergencyPhone   String?
-  lineUserId       String?  @unique
+  lineUserId       String?   @unique
+  lineBindAt       DateTime?
   notes            String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
+  store        Store         @relation(fields: [storeId], references: [id])
   pets         Pet[]
   appointments Appointment[]
   orders       Order[]
   member       Member?
   contracts    Contract[]
+
+  @@unique([storeId, phone])
+  @@index([storeId])
 }
 
 model Pet {
   id                String     @id @default(cuid())
+  storeId           String
   customerId        String
   name              String
   species           PetSpecies
@@ -131,16 +173,19 @@ model Pet {
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
 
+  store        Store         @relation(fields: [storeId], references: [id])
   customer     Customer      @relation(fields: [customerId], references: [id])
   appointments Appointment[]
   orders       Order[]
   contracts    Contract[]
 
+  @@index([storeId])
   @@index([customerId])
 }
 
 model Staff {
   id        String    @id @default(cuid())
+  storeId   String
   name      String
   role      StaffRole
   phone     String?
@@ -149,14 +194,18 @@ model Staff {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
+  store        Store         @relation(fields: [storeId], references: [id])
   appointments Appointment[]
   orders       Order[]
+
+  @@index([storeId])
 }
 
 // ─── Service / Pricing ───────────────────────────────────────────────────────
 
 model Service {
   id               String          @id @default(cuid())
+  storeId          String
   name             String
   category         ServiceCategory
   description      String?
@@ -167,9 +216,12 @@ model Service {
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
+  store        Store                @relation(fields: [storeId], references: [id])
   priceRules   PriceRule[]
   packageItems ServicePackageItem[]
   orderItems   OrderItem[]
+
+  @@index([storeId])
 }
 
 model PriceRule {
@@ -218,6 +270,7 @@ model ServicePackageItem {
 
 model MemberPlan {
   id           String   @id @default(cuid())
+  storeId      String
   name         String
   description  String?
   monthlyFee   Int      @default(0)
@@ -227,7 +280,10 @@ model MemberPlan {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  store   Store    @relation(fields: [storeId], references: [id])
   members Member[]
+
+  @@index([storeId])
 }
 
 model Member {
@@ -281,6 +337,7 @@ model BalanceTransaction {
 
 model Promotion {
   id                String       @id @default(cuid())
+  storeId           String
   name              String
   code              String?      @unique
   discountType      DiscountType
@@ -294,6 +351,10 @@ model Promotion {
   usageCount        Int          @default(0)
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id])
+
+  @@index([storeId])
 }
 
 // ─── Contract ────────────────────────────────────────────────────────────────
@@ -313,8 +374,10 @@ model ContractTemplate {
 }
 
 model Contract {
-  id                String    @id @default(cuid())
-  orderId           String    @unique
+  id                String     @id @default(cuid())
+  storeId           String
+  /// 主契約必填；補充契約可為 null（加購服務直接附掛在原訂單）
+  orderId           String?    @unique
   templateId        String
   customerId        String
   petId             String
@@ -322,25 +385,35 @@ model Contract {
   customFieldValues Json?
   signatureDataUrl  String
   signedAt          DateTime
+  signMethod        SignMethod @default(ONSITE)
+  isSupplementary   Boolean   @default(false)
+  /// 補充契約指向原契約（self-relation）
+  parentContractId  String?
   pdfUrl            String?
   pdfGeneratedAt    DateTime?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
 
-  order    Order            @relation(fields: [orderId], references: [id])
-  template ContractTemplate @relation(fields: [templateId], references: [id])
-  customer Customer         @relation(fields: [customerId], references: [id])
-  pet      Pet              @relation(fields: [petId], references: [id])
+  store          Store            @relation(fields: [storeId], references: [id])
+  order          Order?           @relation(fields: [orderId], references: [id])
+  template       ContractTemplate @relation(fields: [templateId], references: [id])
+  customer       Customer         @relation(fields: [customerId], references: [id])
+  pet            Pet              @relation(fields: [petId], references: [id])
+  parentContract Contract?        @relation("Supplement", fields: [parentContractId], references: [id], onDelete: SetNull)
+  supplements    Contract[]       @relation("Supplement")
 
+  @@index([storeId])
   @@index([templateId])
   @@index([customerId])
   @@index([petId])
+  @@index([parentContractId])
 }
 
 // ─── Appointment ──────────────────────────────────────────────────────────────
 
 model Appointment {
   id                String            @id @default(cuid())
+  storeId           String
   customerId        String
   petId             String
   staffId           String?
@@ -348,19 +421,24 @@ model Appointment {
   estimatedDuration Int // 預估分鐘數
   actualStartAt     DateTime?
   actualEndAt       DateTime?
-  pickupDeadlineAt  DateTime? // 約定接回時間
-  pickedUpAt        DateTime? // 實際接回時間
-  status            AppointmentStatus @default(PENDING)
+  pickupDeadlineAt   DateTime? // 約定接回時間
+  pickedUpAt         DateTime? // 實際接回時間
+  pickupNotifiedAt   DateTime? // 最後一次接送通知時間
+  status             AppointmentStatus @default(PENDING)
   source            AppointmentSource @default(WALK_IN)
+  signedOnline      Boolean           @default(false)
+  onlineContractId  String?
   notes             String?
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
-  customer Customer @relation(fields: [customerId], references: [id])
-  pet      Pet      @relation(fields: [petId], references: [id])
-  staff    Staff?   @relation(fields: [staffId], references: [id])
+  store    Store             @relation(fields: [storeId], references: [id])
+  customer Customer          @relation(fields: [customerId], references: [id])
+  pet      Pet               @relation(fields: [petId], references: [id])
+  staff    Staff?            @relation(fields: [staffId], references: [id])
   order    Order?
 
+  @@index([storeId, scheduledAt])
   @@index([scheduledAt])
   @@index([customerId])
   @@index([staffId, scheduledAt])
@@ -370,6 +448,7 @@ model Appointment {
 
 model Order {
   id             String         @id @default(cuid())
+  storeId        String
   /// 可能是現場直接開單（無預約）
   appointmentId  String?        @unique
   customerId     String
@@ -387,6 +466,7 @@ model Order {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
+  store               Store                @relation(fields: [storeId], references: [id])
   appointment         Appointment?         @relation(fields: [appointmentId], references: [id])
   customer            Customer             @relation(fields: [customerId], references: [id])
   pet                 Pet                  @relation(fields: [petId], references: [id])
@@ -395,9 +475,28 @@ model Order {
   pointTransactions   PointTransaction[]
   balanceTransactions BalanceTransaction[]
   contract            Contract?
+  auditLogs           OrderAuditLog[]
 
+  @@index([storeId, createdAt])
   @@index([customerId, createdAt])
   @@index([status])
+}
+
+// ─── Order Audit Log ─────────────────────────────────────────────────────────
+
+model OrderAuditLog {
+  id        String   @id @default(cuid())
+  orderId   String
+  action    String   // CREATED | STATUS_CHANGED | CANCELLED | REFUNDED | PAYMENT_UPDATED | NOTE_UPDATED
+  oldValue  String?
+  newValue  String?
+  note      String?
+  createdAt DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@index([orderId])
+  @@index([createdAt])
 }
 
 // ─── LINE Bot Session ─────────────────────────────────────────────────────────
@@ -410,6 +509,16 @@ model LineSession {
   updatedAt  DateTime @updatedAt @map("updated_at")
 
   @@map("line_sessions")
+}
+
+// ─── Setting (key-value store) ────────────────────────────────────────────────
+
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
 }
 
 // ─── OrderItem ────────────────────────────────────────────────────────────────
