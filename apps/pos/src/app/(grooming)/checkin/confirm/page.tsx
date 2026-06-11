@@ -7,6 +7,7 @@ import { StepIndicator } from '@/components/ui/StepIndicator'
 import { BigButton } from '@/components/ui/BigButton'
 import { CancelCheckinButton } from '@/components/checkin/CancelCheckinButton'
 import { useCheckinStore } from '@/stores/checkin'
+import { useShallow } from 'zustand/react/shallow'
 
 const STEPS = ['客戶', '寵物', '服務', '確認', '簽名']
 
@@ -98,7 +99,41 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 
 export default function ConfirmPage() {
   const router = useRouter()
-  const store = useCheckinStore()
+  const store = useCheckinStore(
+    useShallow((s) => ({
+      customerId: s.customerId,
+      customerName: s.customerName,
+      customerPhone: s.customerPhone,
+      emergencyContact: s.emergencyContact,
+      emergencyPhone: s.emergencyPhone,
+      petId: s.petId,
+      petName: s.petName,
+      petSpecies: s.petSpecies,
+      petBreed: s.petBreed,
+      petWeight: s.petWeight,
+      isAggressive: s.isAggressive,
+      hasDisease: s.hasDisease,
+      diseaseNotes: s.diseaseNotes,
+      isVaccinated: s.isVaccinated,
+      isDewormed: s.isDewormed,
+      preferredVetName: s.preferredVetName,
+      preferredVetPhone: s.preferredVetPhone,
+      selectedServices: s.selectedServices,
+      staffName: s.staffName,
+      staffSurcharge: s.staffSurcharge,
+      subtotalAmount: s.subtotalAmount,
+      discountAmount: s.discountAmount,
+      totalAmount: s.totalAmount,
+      estimatedDuration: s.estimatedDuration,
+      memberBalance: s.memberBalance,
+      paymentMethod: s.paymentMethod,
+      orderNotes: s.orderNotes,
+      needsSupplementary: s.needsSupplementary,
+      onlineContractServiceIds: s.onlineContractServiceIds,
+      setSchedule: s.setSchedule,
+      setPaymentMethod: s.setPaymentMethod,
+    })),
+  )
 
   const [scheduledAt, setScheduledAt] = useState(now30)
 
@@ -221,6 +256,53 @@ export default function ConfirmPage() {
           )}
         </SectionCard>
 
+        {/* ── 補充契約提示（加購補簽流程） ─────────── */}
+        {store.needsSupplementary && (
+          <div className="rounded-xl border-2 border-amber-400 bg-amber-50 px-5 py-4">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-xl">⚡</span>
+              <p className="font-bold text-amber-900 text-base">加購補簽流程</p>
+            </div>
+            <p className="text-sm text-amber-800 mb-3">
+              此客戶已持有原線上簽約契約。以下加購項目將另行產生
+              <strong>補充契約</strong>，僅含新增服務與差額費用。
+            </p>
+            <div className="flex flex-col gap-1.5">
+              {store.selectedServices.map((s) => {
+                const isNew = !store.onlineContractServiceIds.includes(
+                  s.serviceId,
+                )
+                return (
+                  <div
+                    key={s.serviceId}
+                    className="flex items-center justify-between text-sm"
+                  >
+                    <span
+                      className={
+                        isNew
+                          ? 'text-amber-900 font-semibold'
+                          : 'text-stone-500'
+                      }
+                    >
+                      {isNew ? '+ ' : '　'}
+                      {s.serviceName}
+                    </span>
+                    <span
+                      className={
+                        isNew
+                          ? 'text-amber-900 font-semibold'
+                          : 'text-stone-400'
+                      }
+                    >
+                      ${s.unitPrice * s.quantity}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {/* ── 3. 服務明細（法規§3核心） ───────────────── */}
         <div className="rounded-xl border border-stone-200 bg-white overflow-hidden">
           <div className="bg-stone-900 px-5 py-3">
@@ -305,7 +387,69 @@ export default function ConfirmPage() {
           </div>
         </div>
 
-        {/* ── 4. 服務時間 ──────────────────────────────── */}
+        {/* ── 4. 付款方式 ──────────────────────────────── */}
+        <div className="rounded-xl border border-stone-200 bg-white overflow-hidden">
+          <div className="bg-stone-50 px-5 py-3 border-b border-stone-100">
+            <p className="font-semibold text-sm text-stone-700">付款方式</p>
+          </div>
+          <div className="px-5 py-3 flex flex-col gap-2">
+            {(
+              [
+                { value: 'CASH', label: '現金' },
+                { value: 'CARD', label: '刷卡' },
+                { value: 'TRANSFER', label: '轉帳' },
+                ...(store.memberBalance !== null
+                  ? [
+                      {
+                        value: 'MEMBER_BALANCE',
+                        label: `儲值金（餘額 $${store.memberBalance}）`,
+                      },
+                    ]
+                  : []),
+              ] as {
+                value: 'CASH' | 'CARD' | 'TRANSFER' | 'MEMBER_BALANCE'
+                label: string
+              }[]
+            ).map((opt) => {
+              const isSelected = store.paymentMethod === opt.value
+              const isInsufficient =
+                opt.value === 'MEMBER_BALANCE' &&
+                store.memberBalance !== null &&
+                store.memberBalance < total
+              return (
+                <label
+                  key={opt.value}
+                  className={[
+                    'flex min-h-[52px] cursor-pointer items-center justify-between rounded-xl border-2 px-4 transition-colors',
+                    isSelected
+                      ? 'border-emerald-700 bg-emerald-50'
+                      : 'border-stone-200 bg-white hover:border-emerald-300',
+                  ].join(' ')}
+                >
+                  <div>
+                    <span className="font-semibold text-stone-800">
+                      {opt.label}
+                    </span>
+                    {isInsufficient && (
+                      <p className="text-xs text-red-600 mt-0.5">
+                        餘額不足（需 ${total}），請改選其他方式
+                      </p>
+                    )}
+                  </div>
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    checked={isSelected}
+                    onChange={() => store.setPaymentMethod(opt.value)}
+                    className="h-5 w-5 accent-emerald-700"
+                  />
+                </label>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* ── 5. 服務時間 ──────────────────────────────── */}
         <SectionCard title="服務時間">
           <div className="py-3 border-b border-stone-100">
             <label className="block text-sm text-stone-500 mb-2">

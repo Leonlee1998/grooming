@@ -8,6 +8,22 @@ export interface CustomField {
   value: string
 }
 
+export interface SupplementaryContractData {
+  storeName: string
+  storePhone: string
+  customerName: string
+  customerPhone: string
+  petName: string
+  /** 顯示用的短 ID，例如原契約 DB id 的後 8 碼 */
+  parentContractRef: string
+  services: ServiceItem[]
+  staffName: string
+  staffSurcharge: number
+  supplementaryAmount: number
+  signedAt: string
+  signatureDataUrl: string
+}
+
 export interface ContractData {
   // § 店家資訊
   storeName: string

@@ -1,4 +1,4 @@
-import type { ContractData } from './types.js'
+import type { ContractData, SupplementaryContractData } from './types.js'
 
 type LoopItem = Record<string, unknown>
 
@@ -29,6 +29,16 @@ function renderScalars(
     }
     return String(value ?? '')
   })
+}
+
+export function fillSupplementaryTemplate(
+  templateHtml: string,
+  data: SupplementaryContractData,
+): string {
+  let html = templateHtml
+  html = renderLoop(html, 'services', data.services as unknown as LoopItem[])
+  html = renderScalars(html, data as unknown as Record<string, unknown>)
+  return html
 }
 
 export function fillTemplate(templateHtml: string, data: ContractData): string {

@@ -7,7 +7,13 @@ import { StepIndicator } from '@/components/ui/StepIndicator'
 import { BigButton } from '@/components/ui/BigButton'
 import { CancelCheckinButton } from '@/components/checkin/CancelCheckinButton'
 import { useCheckinStore } from '@/stores/checkin'
-import { getPetsByCustomer, createPet, updatePetHealthInfo } from '../actions'
+import { useShallow } from 'zustand/react/shallow'
+import {
+  getPetsByCustomer,
+  createPet,
+  updatePetHealthInfo,
+  getOnlineContractForPet,
+} from '../actions'
 
 const STEPS = ['客戶', '寵物', '服務', '確認', '簽名']
 
@@ -117,14 +123,16 @@ const ADD_FORM_INIT = {
 
 export default function PetPage() {
   const router = useRouter()
-  const { customerId, customerName, setPet, setOrderNotes } = useCheckinStore(
-    (s) => ({
-      customerId: s.customerId,
-      customerName: s.customerName,
-      setPet: s.setPet,
-      setOrderNotes: s.setOrderNotes,
-    }),
-  )
+  const { customerId, customerName, setPet, setOrderNotes, setOnlineContract } =
+    useCheckinStore(
+      useShallow((s) => ({
+        customerId: s.customerId,
+        customerName: s.customerName,
+        setPet: s.setPet,
+        setOrderNotes: s.setOrderNotes,
+        setOnlineContract: s.setOnlineContract,
+      })),
+    )
 
   const [view, setView] = useState<PageView>('select')
   const [pets, setPets] = useState<Pet[]>([])
@@ -235,6 +243,25 @@ export default function PetPage() {
       preferredVetPhone: health.preferredVetPhone,
     })
     setOrderNotes(orderNotes)
+
+    // 查詢是否有已線上簽約的預約（補簽偵測）
+    const contractInfo = await getOnlineContractForPet(customerId, activePet.id)
+    if (contractInfo.ok && contractInfo.data) {
+      setOnlineContract({
+        onlineContractId: contractInfo.data.onlineContractId,
+        appointmentId: contractInfo.data.appointmentId,
+        originalDraftOrderId: contractInfo.data.originalDraftOrderId,
+        onlineContractServiceIds: contractInfo.data.originalServiceIds,
+      })
+    } else {
+      setOnlineContract({
+        onlineContractId: null,
+        appointmentId: null,
+        originalDraftOrderId: null,
+        onlineContractServiceIds: [],
+      })
+    }
+
     router.push('/checkin/service')
   }
 

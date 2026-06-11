@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>犬、貓美容服務補充契約</title>
+    <style>
+      @page { size: A4; margin: 18mm 16mm; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        color: #1f2933;
+        background: #ffffff;
+        font-family: "Noto Sans TC", "Microsoft JhengHei", "PingFang TC", sans-serif;
+        font-size: 12pt;
+        line-height: 1.65;
+      }
+      h1, h2, h3, p { margin: 0; }
+      h1 { margin-bottom: 6mm; text-align: center; font-size: 18pt; font-weight: 700; }
+      h2 { margin: 6mm 0 3mm; padding-bottom: 1.5mm; border-bottom: 1px solid #9aa5b1; font-size: 13pt; font-weight: 700; }
+      h3 { margin: 3mm 0 2mm; font-size: 12pt; font-weight: 700; }
+      table { width: 100%; border-collapse: collapse; margin-top: 2mm; }
+      th, td { border: 1px solid #cbd2d9; padding: 2.5mm 3mm; text-align: left; vertical-align: top; }
+      th { width: 27%; background: #f5f7fa; font-weight: 700; }
+      .document { width: 100%; }
+      .supplement-banner {
+        margin-bottom: 6mm;
+        padding: 4mm 5mm;
+        border: 2px solid #b45309;
+        background: #fffbeb;
+        border-radius: 2mm;
+      }
+      .supplement-banner p { font-size: 11pt; color: #92400e; }
+      .supplement-banner .ref { font-size: 10pt; color: #b45309; margin-top: 1mm; font-family: monospace; }
+      .legal-note { margin-top: 2mm; color: #52606d; font-size: 9.5pt; line-height: 1.55; }
+      .service-table th { width: auto; text-align: center; }
+      .service-table td { text-align: center; }
+      .amount-table th { width: 70%; text-align: right; }
+      .amount-table td { width: 30%; text-align: right; font-weight: 700; }
+      .highlight-amount { font-size: 14pt; color: #065f46; }
+      .signature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; margin-top: 4mm; }
+      .signature-box { min-height: 36mm; padding: 4mm; border: 1px solid #9aa5b1; }
+      .signature-image { display: block; max-width: 100%; max-height: 24mm; margin-top: 3mm; }
+      .stamp-area { height: 24mm; margin-top: 3mm; border: 1px dashed #9aa5b1; }
+      .page-break-avoid { break-inside: avoid; }
+      @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+    </style>
+  </head>
+  <body>
+    <main class="document">
+      <h1>犬、貓美容服務補充契約</h1>
+
+      <div class="supplement-banner page-break-avoid">
+        <p><strong>⚡ 本文件為補充契約</strong>，僅記載原契約以外之加購服務項目及其費用。</p>
+        <p class="ref">原契約編號：{{parentContractRef}}</p>
+        <p class="legal-note">本補充契約與原契約合併適用，雙方權利義務（健康聲明、解約退費、異常處理等）依原契約條款為準。</p>
+      </div>
+
+      <section class="page-break-avoid">
+        <h2>一、店家與簽約資訊</h2>
+        <table>
+          <tbody>
+            <tr><th>店家名稱</th><td>{{storeName}}</td></tr>
+            <tr><th>店家電話</th><td>{{storePhone}}</td></tr>
+            <tr><th>客戶姓名</th><td>{{customerName}}</td></tr>
+            <tr><th>客戶電話</th><td>{{customerPhone}}</td></tr>
+            <tr><th>寵物名稱</th><td>{{petName}}</td></tr>
+            <tr><th>簽約日期</th><td>{{signedAt}}</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>二、加購服務明細</h2>
+        <p class="legal-note">法規 §3：以下費用為本次加購之服務，客戶簽名前須完整揭露，未列明費用不得收取。</p>
+        <table class="service-table">
+          <thead>
+            <tr><th>加購服務項目</th><th>單價</th></tr>
+          </thead>
+          <tbody>
+            {{#services}}
+            <tr>
+              <td>{{serviceName}}</td>
+              <td>{{unitPrice}}元</td>
+            </tr>
+            {{/services}}
+          </tbody>
+        </table>
+
+        <table>
+          <tbody>
+            <tr><th>指定美容師</th><td>{{staffName}}（{{staffSurcharge}}元）</td></tr>
+          </tbody>
+        </table>
+
+        <table class="amount-table">
+          <tbody>
+            <tr>
+              <th>本次加購費用</th>
+              <td class="highlight-amount">{{supplementaryAmount}}元</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="page-break-avoid">
+        <h2>三、消費者確認與簽名</h2>
+        <p style="margin-bottom: 3mm; font-size: 11pt;">
+          消費者確認已閱讀本補充契約，同意以上加購服務內容及費用，並同意本補充契約與原契約
+          （編號：{{parentContractRef}}）合併適用。
+        </p>
+        <div class="signature-grid">
+          <div class="signature-box">
+            <h3>消費者簽名</h3>
+            <img class="signature-image" src="{{signatureDataUrl}}" alt="消費者簽名" />
+            <p>簽名日期：{{signedAt}}</p>
+          </div>
+          <div class="signature-box">
+            <h3>業者蓋章欄位</h3>
+            <div class="stamp-area" aria-label="業者蓋章欄位"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

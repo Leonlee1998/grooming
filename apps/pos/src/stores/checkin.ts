@@ -49,12 +49,27 @@ const initialState = {
   subtotalAmount: 0,
   discountAmount: 0,
   totalAmount: 0,
-  orderId: null as string | null,
 
+  memberId: null as string | null,
+  memberBalance: null as number | null,
+
+  paymentMethod: null as 'CASH' | 'CARD' | 'TRANSFER' | 'MEMBER_BALANCE' | null,
+
+  orderId: null as string | null,
   contractId: null as string | null,
-  pdfUrl: null as string | null,
+  earnedPoints: null as number | null,
 
   orderNotes: '',
+
+  // 線上預簽契約資訊（加購補簽用）
+  onlineContractId: null as string | null,
+  appointmentId: null as string | null,
+  originalDraftOrderId: null as string | null,
+  onlineContractServiceIds: [] as string[],
+  needsSupplementary: false,
+
+  // 確認到店（線上已簽約，無需補簽）
+  hasOnlineContract: false,
 }
 
 type State = typeof initialState
@@ -95,25 +110,31 @@ interface Actions {
     subtotalAmount: number
     discountAmount: number
     totalAmount: number
+    memberId: string | null
+    memberBalance: number | null
   }) => void
-  /** 設定排程時間（confirm page 使用，不含 orderId） */
+  setPaymentMethod: (
+    method: 'CASH' | 'CARD' | 'TRANSFER' | 'MEMBER_BALANCE' | null,
+  ) => void
   setSchedule: (data: {
     scheduledAt: string
     estimatedDuration: number
     pickupDeadlineAt: string
   }) => void
-  setOrder: (data: {
-    scheduledAt: string
-    estimatedDuration: number
-    pickupDeadlineAt: string
-    subtotalAmount: number
-    discountAmount: number
-    totalAmount: number
-    orderId: string
-  }) => void
   setOrderId: (orderId: string) => void
-  setContract: (data: { contractId: string; pdfUrl: string }) => void
+  setContract: (data: {
+    contractId: string
+    earnedPoints: number | null
+  }) => void
   setOrderNotes: (notes: string) => void
+  setOnlineContract: (data: {
+    onlineContractId: string | null
+    appointmentId: string | null
+    originalDraftOrderId: string | null
+    onlineContractServiceIds: string[]
+  }) => void
+  setNeedsSupplementary: (needs: boolean) => void
+  setHasOnlineContract: (value: boolean) => void
   reset: () => void
 }
 
@@ -124,10 +145,13 @@ export const useCheckinStore = create<State & Actions>((set) => ({
   setServices: (selectedServices) => set({ selectedServices }),
   setStaff: (data) => set(data),
   setPriceQuote: (data) => set(data),
+  setPaymentMethod: (paymentMethod) => set({ paymentMethod }),
   setSchedule: (data) => set(data),
-  setOrder: (data) => set(data),
   setOrderId: (orderId) => set({ orderId }),
   setContract: (data) => set(data),
   setOrderNotes: (orderNotes) => set({ orderNotes }),
+  setOnlineContract: (data) => set(data),
+  setNeedsSupplementary: (needsSupplementary) => set({ needsSupplementary }),
+  setHasOnlineContract: (hasOnlineContract) => set({ hasOnlineContract }),
   reset: () => set(initialState),
 }))
